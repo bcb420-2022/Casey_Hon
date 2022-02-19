@@ -1,15 +1,103 @@
 ---
-title: "Assignment 1"
+title: "Assignment 1 - Casey Hon"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
-
+** Downloading the Data **
 ```{r}
-plot(cars)
+if (! requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+if (! requireNamespace("Biobase", quietly = TRUE)) {
+  BiocManager::install("Biobase")
+}
+if (! requireNamespace("GEOquery", quietly = TRUE)) {
+  BiocManager::install("GEOquery")
+}
+if (! requireNamespace("edgeR", quietly = TRUE)) {
+  BiocManager::install("edgeR")
+}
+if (! requireNamespace("biomaRt", quietly = TRUE)) {
+  BiocManager::install("biomaRt")
+}
+library(GEOquery)
+# TO-DO: make this not have to run every time
+GSE165708 <- getGEO("GSE165708", GSEMatrix =FALSE, getGPL=FALSE)
+sfiles <- getGEOSuppFiles("GSE165708")
+fnames <- rownames(sfiles) 
+supp <- read.delim(fnames[2], header = TRUE, check.names = FALSE)
 ```
+
+** Data information **
+```{r}
+current_gpl <- names(GPLList(GSE165708))[1]
+current_gpl_info <- Meta(getGEO(current_gpl))
+```
+**Platform:** `r current_gpl_info$title`
+**Organisms:** `r current_gpl_info$organism` (taxid: `r current_gpl_info$taxid`)
+
+** Pre-cleaning Statistics **
+Unique gene count: `r length(unique(supp$gene_id))`
+# how many genes in each sample?
+```{r}
+# split ensembl ID and gene name, code referred to Lecture 4 slides
+gene_names <- data.frame(lapply(supp$gene_id, FUN = function(x){unlist(strsplit(x, split = "_"))}))
+supp$gene_name <- t(gene_names[2,])
+supp$ensembl_id <- t(gene_names[1,])
+samples <- data.frame(lapply(colnames(supp)[2:101], FUN = function(x){unlist(strsplit(x, split = "\\."))}))
+colnames(samples) <- colnames(supp[2:101])
+rownames(samples) <- c("sample_group", "patient", "disease", "challenged") # boolean value for whether or not the sample was challenged with M. tuberculosis, with 0 meaning non-challenged, 1 meaning
+samples <- as.data.frame(t(samples))
+```
+Samples: `r unique(samples$sample_group)`
+Patients: `r unique(samples$patient)`
+Number of samples challenged: `r length(samples$challenged == 1)`
+
+Output gene counts that are greater than 1:
+```{r}
+# (code from Lecture 4 slides)
+summarized_gene_counts <- sort(table(supp$gene_name), decreasing = TRUE)
+knitr::kable(summarized_gene_counts[which(summarized_gene_counts > 1)])
+```
+The only gene counts duplicated are due to similarity between two genes, but they are actually just a variant. For example, upon manually checking the two Ensembl IDs that both map to AHRR, one maps to AHRR and the other maps to PDCD6-AHRR on HGNC. This just reinforces the importance of mapping to the HUGO gene symbols too to further differentiate some of the genes that look like duplicates but actually differ.
+
+Filter out genes that have low counts:
+```{r}
+# code from Lecture 4
+cpms <- edgeR::cpm(supp[,2:101])
+rownames(cpms) <- supp$gene_id
+keep = rowSums(cpms > 1) >= 28 # n is set to 28, which is the size of the smallest group of replicates (PrEP)
+hiv_filtered = supp[keep, ]
+summarized_gene_counts_filtered <- sort(table(hiv_filtered$gene_name), decreasing = TRUE)
+knitr::kable(summarized_gene_counts_filtered[which(summarized_gene_counts_filtered > 1)])
+```
+Filtering leaves 13,780 genes, much lower than the original 60,000+. It also reduces the number of duplicates to just a few that is easier to handle.
+
+** Mapping to HUGO gene symbols **
+```{r}
+# code from Lecture 4
+ensembl <- biomaRt::useMart("ensembl")
+ensembl <- biomaRt::useDataset("hsapiens_gene_ensembl", mart=ensembl)
+biomart_human_filters <- biomaRt::listFilters(ensembl)
+
+knitr::kable(biomart_human_filters[
+  grep(biomart_human_filters$name, pattern = "ensembl"), ], 
+  format = "html") 
+knitr::kable(biomaRt::searchAttributes(mart = ensembl, 'ensembl|hgnc')[1:12,], 
+             format = "html")
+conversion_stash <- "hiv_id_conversion.rds"
+if (file.exists(conversion_stash)) {
+  hiv_id_conversion <- readRDS("hiv_id_conversion.rds")
+} else {
+  hiv_id_conversion <- biomaRt::getBM(attributes = c("ensembl_gene_id", "hgnc_symbol"),
+                                      filters = c("ensembl_gene_id"),
+                                      values = hiv_filtered$ensembl_id,
+                                      mart = ensembl)
+  saveRDS(hiv_id_conversion, conversion_stash)
+}
+```
+
+
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
 
