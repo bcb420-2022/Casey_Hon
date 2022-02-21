@@ -3,7 +3,16 @@ title: "Assignment 1 - Casey Hon"
 output: html_notebook
 ---
 
-** Downloading the Data **
+# Epigenetic impairment and blunted transcriptional response to Mycobacterium tuberculosis of alveolar macrophages from persons living with HIV (RNA-Seq)
+
+# Report
+
+1)  What are the control and test conditions of the dataset?
+
+2)  Why is the dataset of interest to you?
+
+## Downloading the Data
+
 ```{r}
 if (! requireNamespace("BiocManager", quietly = TRUE)) {
   install.packages("BiocManager")
@@ -20,94 +29,181 @@ if (! requireNamespace("edgeR", quietly = TRUE)) {
 if (! requireNamespace("biomaRt", quietly = TRUE)) {
   BiocManager::install("biomaRt")
 }
-library(GEOquery)
-# TO-DO: make this not have to run every time
-GSE165708 <- getGEO("GSE165708", GSEMatrix =FALSE, getGPL=FALSE)
-sfiles <- getGEOSuppFiles("GSE165708")
-fnames <- rownames(sfiles) 
-supp <- read.delim(fnames[2], header = TRUE, check.names = FALSE)
-```
+if (! requireNamespace("ggplot2", quietly = TRUE)) {
+  BiocManager::install("ggplot2")
+}
 
-** Data information **
-```{r}
-current_gpl <- names(GPLList(GSE165708))[1]
-current_gpl_info <- Meta(getGEO(current_gpl))
-```
-**Platform:** `r current_gpl_info$title`
-**Organisms:** `r current_gpl_info$organism` (taxid: `r current_gpl_info$taxid`)
-
-** Pre-cleaning Statistics **
-Unique gene count: `r length(unique(supp$gene_id))`
-# how many genes in each sample?
-```{r}
-# split ensembl ID and gene name, code referred to Lecture 4 slides
-gene_names <- data.frame(lapply(supp$gene_id, FUN = function(x){unlist(strsplit(x, split = "_"))}))
-supp$gene_name <- t(gene_names[2,])
-supp$ensembl_id <- t(gene_names[1,])
-samples <- data.frame(lapply(colnames(supp)[2:101], FUN = function(x){unlist(strsplit(x, split = "\\."))}))
-colnames(samples) <- colnames(supp[2:101])
-rownames(samples) <- c("sample_group", "patient", "disease", "challenged") # boolean value for whether or not the sample was challenged with M. tuberculosis, with 0 meaning non-challenged, 1 meaning
-samples <- as.data.frame(t(samples))
-```
-Samples: `r unique(samples$sample_group)`
-Patients: `r unique(samples$patient)`
-Number of samples challenged: `r length(samples$challenged == 1)`
-
-Output gene counts that are greater than 1:
-```{r}
-# (code from Lecture 4 slides)
-summarized_gene_counts <- sort(table(supp$gene_name), decreasing = TRUE)
-knitr::kable(summarized_gene_counts[which(summarized_gene_counts > 1)])
-```
-The only gene counts duplicated are due to similarity between two genes, but they are actually just a variant. For example, upon manually checking the two Ensembl IDs that both map to AHRR, one maps to AHRR and the other maps to PDCD6-AHRR on HGNC. This just reinforces the importance of mapping to the HUGO gene symbols too to further differentiate some of the genes that look like duplicates but actually differ.
-
-Filter out genes that have low counts:
-```{r}
-# code from Lecture 4
-cpms <- edgeR::cpm(supp[,2:101])
-rownames(cpms) <- supp$gene_id
-keep = rowSums(cpms > 1) >= 28 # n is set to 28, which is the size of the smallest group of replicates (PrEP)
-hiv_filtered = supp[keep, ]
-summarized_gene_counts_filtered <- sort(table(hiv_filtered$gene_name), decreasing = TRUE)
-knitr::kable(summarized_gene_counts_filtered[which(summarized_gene_counts_filtered > 1)])
-```
-Filtering leaves 13,780 genes, much lower than the original 60,000+. It also reduces the number of duplicates to just a few that is easier to handle.
-
-** Mapping to HUGO gene symbols **
-```{r}
-# code from Lecture 4
-ensembl <- biomaRt::useMart("ensembl")
-ensembl <- biomaRt::useDataset("hsapiens_gene_ensembl", mart=ensembl)
-biomart_human_filters <- biomaRt::listFilters(ensembl)
-
-knitr::kable(biomart_human_filters[
-  grep(biomart_human_filters$name, pattern = "ensembl"), ], 
-  format = "html") 
-knitr::kable(biomaRt::searchAttributes(mart = ensembl, 'ensembl|hgnc')[1:12,], 
-             format = "html")
-conversion_stash <- "hiv_id_conversion.rds"
-if (file.exists(conversion_stash)) {
-  hiv_id_conversion <- readRDS("hiv_id_conversion.rds")
+# load non-normalized counts
+dataset_name <- "GSE165708"
+if (!dir.exists(paste0("./", dataset_name))) {
+  GSE165708 <- GEOquery::getGEO(dataset_name, GSEMatrix = FALSE, getGPL= FALSE)
+  supp_files <- GEOquery::getGEOcountsFiles(dataset_name)
+  file_names <- rownames(supp_files) 
+  counts <- read.delim(file_names[2], header = TRUE, check.names = FALSE)
 } else {
-  hiv_id_conversion <- biomaRt::getBM(attributes = c("ensembl_gene_id", "hgnc_symbol"),
-                                      filters = c("ensembl_gene_id"),
-                                      values = hiv_filtered$ensembl_id,
-                                      mart = ensembl)
-  saveRDS(hiv_id_conversion, conversion_stash)
+  counts <- read.delim("./GSE165708/GSE165708_non-normalized_estimated_counts_matrix.txt.gz")
 }
 ```
 
-** Distribution of Data before Normalization **
+**Data information**
+
 ```{r}
+platform <- names(GPLList(GSE165708))[1]
+platform_metadata <- GEOquery::Meta(GEOquery::getGEO(current_gpl))
+```
+
+**Platform:** `r platform_metadata$title` **Organisms:** `r platform_metadata$organism` (taxid: `r platform_metadata$taxid`)
+
+## Pre-cleaning Statistics
+
+Unique gene count: `r length(unique(counts$gene_id))`
+
+```{r}
+# split ensembl ID and gene name, code referred to Lecture 4 slides
+gene_names <- data.frame(lapply(counts$gene_id, FUN = function(x){unlist(strsplit(x, split = "_"))}))
+counts$gene_name <- t(gene_names[2,])
+counts$ensembl_id <- t(gene_names[1,])
+rownames(counts) <- counts$ensembl_id
+groups <- data.frame(lapply(colnames(counts)[2:101], FUN = function(x){unlist(strsplit(x, 
+                                                                                        split = "\\."))}))
+colnames(groups) <- colnames(counts[2:101])
+rownames(groups) <- c("sample_group", "patient", "disease", "challenged") 
+# challenged = boolean value for whether or not the sample was challenged with M. tuberculosis, with 0 means non-challenged, 1 means challenged.
+groups <- as.data.frame(t(groups))
+group_counts <- data.frame(HC = length(which(groups$sample_group == "HC")), 
+                            PrEP = length(which(groups$sample_group == "PrEP")), 
+                            PLWH = length(which(groups$sample_group == "PLWH")))
+knitr::kable(group_counts, caption = "Number of groups in each condition")
+```
+
+Total sample groups: `r unique(groups$sample_group)` Total Patients: `r unique(groups$patient)` Number of groups challenged: `r length(groups$challenged == 1)`
+
+Output gene counts that are greater than 1:
+
+```{r}
+# (code from Lecture 4 slides)
+gene_name_counts <- table(counts$gene_name)
+knitr::kable(gene_name_counts[which(gene_name_counts > 1)], caption = "Genes with counts greater than 1", col.names = c("Gene", "Frequency"))
+```
+
+The only gene counts duplicated are due to similarity between two genes, but they are actually just a variant. For example, upon manually checking the two Ensembl IDs that are both coded as AHRR, one maps to AHRR and the other maps to PDCD6-AHRR, which is the programmed cell death 6 version of the gene. This just reinforces the importance of mapping to the HUGO gene symbols too to further differentiate some of the genes that look like duplicates but actually differ.
+
+Filter out genes that have low counts:
+
+```{r}
+# code from Lecture 4
+cpms <- edgeR::cpm(counts[,2:101])
+rownames(cpms) <- counts$gene_id
+# n is set to 28, which is the size of the smallest group of replicates (PrEP)
+filtered <- counts[rowSums(cpms > 1) >= 28, ]
+counts_filtered <- table(filtered$gene_name)
+knitr::kable(counts_filtered[which(counts_filtered > 1)], col.names = c("Gene", "Frequency"))
+```
+
+I used the edgeR protocol recommendations, which states to remove features that has at least 1 read per million in n of the samples, where n is the size of the smallest group of replicates. As we saw in an above table, the smallest group was the PrEP condition with 28 samples. Filtering leaves 13,780 genes, much lower than the original 60,000+. Specifically, `r nrow(counts) - nrow(counts_filtered)` outliers were removed. It also reduces the number of duplicates to just a few that is easier to handle.
+
+## Mapping to HUGO gene symbols
+
+```{r}
+# based on code from Lecture 4
+mart <- biomaRt::useMart(biomart = "ensembl")
+ensembl <- biomaRt::useDataset(dataset = "hsapiens_gene_ensembl", 
+                               mart = mart)
+filters <- biomaRt::listFilters(mart = ensembl)
+
+converted <- "id_conv.rds"
+if (file.exists(converted)) { # check if file already exists before converting again
+  id_conv <- readRDS("id_conv.rds")
+} else {
+  id_conv <- biomaRt::getBM(attributes = c("ensembl_gene_id", "hgnc_symbol"),
+                                      filters = c("ensembl_gene_id"),
+                                      values = filtered$ensembl_id,
+                                      mart = ensembl)
+  saveRDS(id_conv, converted)
+}
+hgnc <- table(id_conv$hgnc_symbol)
+colnames(id_conv) <- c("ensembl_id", "hgnc_symbol")
+filtered <- merge(filtered, id_conv, by = "ensembl_id")
+knitr::kable(hgnc[which(hgnc > 1)], col.names = c("HGNC Symbol", "Frequency"))
+```
+
+There were `r sum(id_conv$hgnc_symbol == "")` genes that could not be mapped to HGNC symbols, which is `r sum(id_conv$hgnc_symbol == "")/length(id_conv$hgnc_symbol) * 100`% of all genes. We also see that mapping to HGNC symbols only leaves 4 duplicated genes.
+
+The duplicated genes are: `r names(hgnc[which(hgnc > 1)])`, ignoring the first empty string which represents genes that could not be mapped to HGNC symbols. Since there are only 4 and each one is only duplicated once (8 genes in total), I will just remove all of them. I will also remove all genes that could not be mapped to HGNC symbols.
+
+```{r}
+# handling duplicated genes manually, since there are only 4
+dups <- names(hgnc[which(hgnc > 1)])
+for (i in length(dups)) {
+  filtered <- filtered[-c(which(filtered$hgnc_symbol == dups[i]))]
+}
+```
+
+## Distribution of Data before Normalization
+
+```{r}
+# code from lecture 4
+filtered_log_cpm <- log2(edgeR::cpm(filtered[,2:101]))
+par(mar = c(6, 4, 4, 4)) # increase bottom margin since x-labels are so long
+boxplot(filtered_log_cpm, xlab = "", 
+        ylab = "log2(CPM) values", las = 2,
+        cex = 0.5, cex.lab = 0.75, cex.axis = 0.5, 
+        main = "Log2 CPMs of HIV groups") 
+mtext("Conditions", side = 1, line = 4.7) # adds x-axis label
+```
+
+There were a lot of warnings that Outliers with value -Inf were not drawn. These likely represents certain samples having 0 cpm, since log2(0) gives the -Inf value. We can ignore these since we already filtered these out. It's important to note that the x-axis only shows the samples that end with ".0", which represent non-challenged samples. However, the labelling just kept every other sample, but this does indeed include challenged samples as well. This was double checked by rotating the label names to horizontal, which does show the samples that end with ".1".
+
+Based on this box plot, some of the groups have differing log2(cpm) values, which shows the need for normalization.
+
+```{r}
+# based on https://mkempenaar.github.io/gene_expression_analysis/chapter-3.html
+cols <- scales::hue_pal()(ncol(filtered_log_cpm))
+affy::plotDensity(filtered_log_cpm, col = cols,
+                  lty = c(1:ncol(filtered_log_cpm)), 
+                  main = "Pre-normalization counts distribution")
+legend("topright", colnames(filtered_log_cpm), 
+       lty = c(1:ncol(filtered_log_cpm)),
+       col = cols,
+       cex = 0.6)
+```
+
+Based on this density plot, we can see that most of the groups follow a very similar distribution, but none of them follow a normal distribution.
+
+## Data Normalization
+
+The Trimmed Mean of M-values (TMM) method of normalization will be used as it is a technique for RNA-seq data. \*\* TO-DO: elaborate \*\*
+
+```{r}
+#code from lecture 4
+filtered_mat <- as.matrix(filtered[, 2:101])
+rownames(filtered_mat) <- filtered$ensembl_id
+d = edgeR::DGEList(counts = filtered_mat, group = groups$sample_group)
+d = edgeR::calcNormFactors(d)
+normalized_counts <- edgeR::cpm(d)
+normed_log_counts <- log2(normalized_counts)
+
+# plot normalized counts
+boxplot(log2(normed_log_counts), xlab = "groups", ylab = "log2 CPM", las = 2,
+        cex = 0.5, cex.lab = 0.5, cex.axis = 0.5, main = "Log2 CPMs of HIV groups")
 
 ```
 
+Based on the boxplot, the normalized counts have log2(cpm) values that are much more similar.
 
-** Normalizing Data **
+```{r}
+cols <- scales::hue_pal()(ncol(normed_log_counts))
+affy::plotDensity(normed_log_counts, col = cols,
+                  lty = c(1:ncol(normed_log_counts)), 
+                  main = "Normalized counts distribution")
+legend("topright", colnames(normed_log_counts), 
+       lty = c(1:ncol(normed_log_counts)),
+       col = cols,
+       cex = 0.6)
+```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+The density plot is very slightly changed after normalization, but still shows a bit more similarity in distribution across groups. This shows that the data did not have a lot of technical variation to begin with, but normalizing it just in case is still important.
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
-
+```{r}
+# MDS plot to inspect sample separation
+```
