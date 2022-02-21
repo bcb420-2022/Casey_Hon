@@ -97,7 +97,13 @@ if (file.exists(conversion_stash)) {
 }
 ```
 
+** Distribution of Data before Normalization **
+```{r}
 
+```
+
+
+** Normalizing Data **
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
 
