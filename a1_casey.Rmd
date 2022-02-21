@@ -143,7 +143,7 @@ for (i in length(dups)) {
 
 ```{r}
 # code from lecture 4
-filtered_log_cpm <- log2(edgeR::cpm(filtered[,2:101]))
+filtered_log_cpm <- log2(edgeR::cpm(filtered[,3:102]))
 par(mar = c(6, 4, 4, 4)) # increase bottom margin since x-labels are so long
 boxplot(filtered_log_cpm, xlab = "", 
         ylab = "log2(CPM) values", las = 2,
@@ -176,19 +176,22 @@ The Trimmed Mean of M-values (TMM) method of normalization will be used as it is
 
 ```{r}
 #code from lecture 4
-filtered_mat <- as.matrix(filtered[, 2:101])
+filtered_mat <- as.matrix(filtered[, 3:102])
 rownames(filtered_mat) <- filtered$ensembl_id
-d = edgeR::DGEList(counts = filtered_mat, group = groups$sample_group)
-d = edgeR::calcNormFactors(d)
+dge <- edgeR::DGEList(counts = filtered_mat, 
+                      group = groups$sample_group)
+dge <- edgeR::calcNormFactors(dge)
 normalized_counts <- edgeR::cpm(d)
 normed_log_counts <- log2(normalized_counts)
 
 # plot normalized counts
-boxplot(log2(normed_log_counts), xlab = "groups", ylab = "log2 CPM", las = 2,
-        cex = 0.5, cex.lab = 0.5, cex.axis = 0.5, main = "Log2 CPMs of HIV groups")
-
+par(mar = c(6, 4, 4, 4)) 
+boxplot(normed_log_counts, xlab = "", 
+        ylab = "log2(CPM) values", las = 2,
+        cex = 0.5, cex.lab = 0.75, cex.axis = 0.5, 
+        main = "Log2 CPMs of HIV groups after normalization") 
+mtext("Conditions", side = 1, line = 4.7) # adds x-axis label
 ```
-
 Based on the boxplot, the normalized counts have log2(cpm) values that are much more similar.
 
 ```{r}
@@ -201,9 +204,9 @@ legend("topright", colnames(normed_log_counts),
        col = cols,
        cex = 0.6)
 ```
-
 The density plot is very slightly changed after normalization, but still shows a bit more similarity in distribution across groups. This shows that the data did not have a lot of technical variation to begin with, but normalizing it just in case is still important.
 
 ```{r}
 # MDS plot to inspect sample separation
+
 ```
