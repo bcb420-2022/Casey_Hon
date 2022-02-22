@@ -1,19 +1,24 @@
 ---
 title: "Assignment 1 - Casey Hon"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
-# Epigenetic impairment and blunted transcriptional response to Mycobacterium tuberculosis of alveolar macrophages from persons living with HIV (RNA-Seq)
+# Introduction
 
-# Report
+Individuals with HIV are at higher risk to have tuberculosis (TB), and this is often due to infection with *Mycobacterium tuberculosis* (*M. tuberculosis*) that rapidly progresses to disease (Correa-Macedo et al., 2021). Alveolar macrophages (AMs) are the first cells in the immune system that interact with *M. tuberculosis*, however their interaction with HIV and antiretroviral therapy (ART) is still unknown (Correa-Macedo et al., 2021). Thus, this study aimed to investigate the transcriptomic and epigenetic response of AMs to *M. tuberculosis* and how HIV and ART play a part in these mechanisms.
 
-1)  What are the control and test conditions of the dataset?
+AMs were obtained from 16 control subjects who were HIV-free (HC), 20 persons living with HIV receiving ART (PLWH), and 14 subjects who received ART as preexposure prophylaxis (PrEP) to prevent HIV infection. Each sample was challenged with *M. tuberculosis* in vitro. This dataset was of interest to me because of my lack of knowledge about HIV, and recognizing how there are social stigmas around this condition. Through this study, I learned that TB is actually the leading cause of death from a single pathogen, with 1.4 million deaths in 2019 alone. This included 208,000 people who had HIV, and people with HIV actually had a 2.0-fold higher mortality. This interested me that even given the severity, we are still unsure as to how HIV and it's related therapy causes this.
 
-2)  Why is the dataset of interest to you?
+Therefore, this notebook aims to analyze the RNA-seq data from this study on the gene level.
 
 ## Downloading the Data
 
-```{r}
+This dataset is from the study *Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis* (Correa-Macedo et al., 2021).
+
+```{r, message = FALSE}
+suppressWarnings(
 if (! requireNamespace("BiocManager", quietly = TRUE)) {
   install.packages("BiocManager")
 }
@@ -32,6 +37,9 @@ if (! requireNamespace("biomaRt", quietly = TRUE)) {
 if (! requireNamespace("ggplot2", quietly = TRUE)) {
   BiocManager::install("ggplot2")
 }
+if (! requireNamespace("PoiClaClu", quietly = TRUE)) {
+  BiocManager::install("PoiClaClu")
+})
 
 # load non-normalized counts
 dataset_name <- "GSE165708"
@@ -52,7 +60,9 @@ platform <- names(GPLList(GSE165708))[1]
 platform_metadata <- GEOquery::Meta(GEOquery::getGEO(current_gpl))
 ```
 
-**Platform:** `r platform_metadata$title` **Organisms:** `r platform_metadata$organism` (taxid: `r platform_metadata$taxid`)
+**Platform:** `r platform_metadata$title`
+
+**Organisms:** `r platform_metadata$organism` (taxid: `r platform_metadata$taxid`)
 
 ## Pre-cleaning Statistics
 
@@ -76,9 +86,17 @@ group_counts <- data.frame(HC = length(which(groups$sample_group == "HC")),
 knitr::kable(group_counts, caption = "Number of groups in each condition")
 ```
 
-Total sample groups: `r unique(groups$sample_group)` Total Patients: `r unique(groups$patient)` Number of groups challenged: `r length(groups$challenged == 1)`
+Total sample groups: `r unique(groups$sample_group)`
 
-Output gene counts that are greater than 1:
+-   **HC** = Control subjects who were HIV-free
+
+-   **PLWH** = Persons living with HIV receiving ART
+
+-   **PrEP** = Subjects who received ART as preexposure prophylaxis
+
+Total Patients: `r length(unique(groups$patient))`
+
+Number of groups challenged: `r length(groups$challenged == 1)`
 
 ```{r}
 # (code from Lecture 4 slides)
@@ -127,17 +145,22 @@ filtered <- merge(filtered, id_conv, by = "ensembl_id")
 knitr::kable(hgnc[which(hgnc > 1)], col.names = c("HGNC Symbol", "Frequency"))
 ```
 
-There were `r sum(id_conv$hgnc_symbol == "")` genes that could not be mapped to HGNC symbols, which is `r sum(id_conv$hgnc_symbol == "")/length(id_conv$hgnc_symbol) * 100`% of all genes. We also see that mapping to HGNC symbols only leaves 4 duplicated genes.
+There were `r sum(id_conv$hgnc_symbol == "")` genes that could not be mapped to HGNC symbols, which is `r sum(id_conv$hgnc_symbol == "")/length(id_conv$hgnc_symbol) * 100`% of all genes. However, gene names were included in the original dataset that are mostly the same as the HGNC symbols I mapped, with `r sum(filtered2$gene_name != filtered2$hgnc_symbol) / nrow(filtered2) * 100` being different (mostly attributed to genes that could not be mapped to any HGNC symbol). I will merge these instead to deal with missing HGNC identifiers. We also see that mapping to HGNC symbols only leaves 4 duplicated genes.
 
-The duplicated genes are: `r names(hgnc[which(hgnc > 1)])`, ignoring the first empty string which represents genes that could not be mapped to HGNC symbols. Since there are only 4 and each one is only duplicated once (8 genes in total), I will just remove all of them. I will also remove all genes that could not be mapped to HGNC symbols.
+The duplicated genes are: `r names(hgnc[which(hgnc > 1)])`, ignoring the first empty string which represents genes that could not be mapped to HGNC symbols. Since there are only 4 and each one is only duplicated once (8 genes in total), I will just remove all of them.
 
 ```{r}
+# merge old mapping
+filtered$hgnc_symbol <- ifelse(filtered$hgnc_symbol == "", filtered$gene_name, filtered$hgnc_symbol)
+
 # handling duplicated genes manually, since there are only 4
 dups <- names(hgnc[which(hgnc > 1)])
-for (i in length(dups)) {
+for (i in 2:length(dups)) { # ignore first one which is empty hgnc symbols, which we have merged
   filtered <- filtered[-c(which(filtered$hgnc_symbol == dups[i]))]
 }
 ```
+
+Removing duplicates leaves us with `r nrow(filtered)` genes.
 
 ## Distribution of Data before Normalization
 
@@ -152,7 +175,7 @@ boxplot(filtered_log_cpm, xlab = "",
 mtext("Conditions", side = 1, line = 4.7) # adds x-axis label
 ```
 
-There were a lot of warnings that Outliers with value -Inf were not drawn. These likely represents certain samples having 0 cpm, since log2(0) gives the -Inf value. We can ignore these since we already filtered these out. It's important to note that the x-axis only shows the samples that end with ".0", which represent non-challenged samples. However, the labelling just kept every other sample, but this does indeed include challenged samples as well. This was double checked by rotating the label names to horizontal, which does show the samples that end with ".1".
+There were a lot of warnings that Outliers with value -Inf were not drawn. These likely represents certain samples having 0 cpm, since log2(0) gives the -Inf value. We can ignore these since we already filtered these out. There is also the option to remove these outliers from the graph by adding the Outline = FALSE parameter, but I decided against this as it would obscure how the pre-normalized data looks. Also, it's important to note that the x-axis only shows the samples that end with ".0", which represent non-challenged samples. However, the labelling just kept every other sample, but this does indeed include challenged samples as well. This was double checked by rotating the label names to horizontal, which does show the samples that end with ".1".
 
 Based on this box plot, some of the groups have differing log2(cpm) values, which shows the need for normalization.
 
@@ -183,7 +206,11 @@ dge <- edgeR::DGEList(counts = filtered_mat,
 dge <- edgeR::calcNormFactors(dge)
 normalized_counts <- edgeR::cpm(d)
 normed_log_counts <- log2(normalized_counts)
+```
 
+We now have a matrix object that has 100 columns representing the 100 samples, 13,757 rows representing the genes, and the Ensembl Gene IDs are the rownames. The values are the logged, normalized counts.
+
+```{r}
 # plot normalized counts
 par(mar = c(6, 4, 4, 4)) 
 boxplot(normed_log_counts, xlab = "", 
@@ -192,6 +219,7 @@ boxplot(normed_log_counts, xlab = "",
         main = "Log2 CPMs of HIV groups after normalization") 
 mtext("Conditions", side = 1, line = 4.7) # adds x-axis label
 ```
+
 Based on the boxplot, the normalized counts have log2(cpm) values that are much more similar.
 
 ```{r}
@@ -204,9 +232,43 @@ legend("topright", colnames(normed_log_counts),
        col = cols,
        cex = 0.6)
 ```
+
 The density plot is very slightly changed after normalization, but still shows a bit more similarity in distribution across groups. This shows that the data did not have a lot of technical variation to begin with, but normalizing it just in case is still important.
+
+We can also calculate a distance metric for each combination of samples to check for variation within the sample groups. I will perform Multi-Dimensional Scaling (MDS) to display distances in a 2D-plot. MDS uses Poisson Distance as it's distance metric. Since there are three sample groups, we should expect to see three separated clusters.
 
 ```{r}
 # MDS plot to inspect sample separation
-
+# based on https://mkempenaar.github.io/gene_expression_analysis/ and https://www.bioconductor.org/help/course-materials/2014/SeattleOct2014/B02.1.1_RNASeqLab.html
+# PoissonDistance function takes original count matrix, un-normalized, with samples as rows
+pois_distances <- PoiClaClu::PoissonDistance(t(filtered_mat))
+pois_dist_mat <- as.matrix(pois_distances$dd)
+mds <- data.frame(cmdscale(pois_dist_mat))
+mds <- cbind(mds, samples)
+qplot(X1, X2, color = sample_group, data = mds, main = "MDS plot of Poisson Distances by sample group")
 ```
+
+Based on the MDS plot, we do not really see clear clustering by sample group. There is a pattern that the Healthy Control (HC) group (in pink) tends to be on the left side, the Persons living with HIV (PLWH) group (in green) tending to be more on the right, and the pre-exposure prophylaxis (PrEP) group (in blue) towards the bottom middle. However, compared to other clearly-clustered examples, this is definitely a very obscure distinction between sample groups. I also tried plotting by the other conditions, by patient or by challenged status, but the clustering was even more obscure.
+
+## Results
+
+```{r}
+rownames(normed_log_counts) <- filtered$hgnc_symbol
+final_result <- as.data.frame(normed_log_counts)
+```
+
+The final result is a dataframe with `r ncol(final_result)` numeric columns that represent the 100 samples of this experiment. The rownames are the unique HUGO symbols. The colnames are the original sample names from the experiment.
+
+## References
+
+Correa-Macedo, Wilian et al. "Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis." *The Journal of clinical investigation* vol. 131,22 (2021): e148013. <doi:10.1172/JCI148013>
+
+Evans, C., Hardin, J., Stoebel, D. M. "Selecting between-sample RNA-Seq normalization methods from the perspective of their assumptions." *Briefings in Bioinformatics*. (2018).DOI: 10.1093/bib/bbx008
+
+Isserlin, R." Lecture 4 - Exploring the data and basics of Normalization" (2021).
+
+Isserlin, R. "Lecture 5 - Data exploration and Identifier mapping" (2022).
+
+Kempenaar, M. "Analysis of Gene Expression" (2021). <https://mkempenaar.github.io/gene_expression_analysis/>
+
+Love M., Anders S., Huber W. "RNA-Seq workflow: gene-level exploratory analysis and differential expression" (2014). <https://www.bioconductor.org/help/course-materials/2014/SeattleOct2014/B02.1.1_RNASeqLab.html>
