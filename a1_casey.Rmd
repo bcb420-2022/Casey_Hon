@@ -1,5 +1,6 @@
 ---
-title: "Assignment 1 - Casey Hon"
+title: "Assignment 1"
+author: "Casey Hon"
 output:
   html_document:
     df_print: paged
@@ -18,33 +19,34 @@ Therefore, this notebook aims to analyze the RNA-seq data from this study on the
 This dataset is from the study *Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis* (Correa-Macedo et al., 2021).
 
 ```{r, message = FALSE}
-suppressWarnings(
-if (! requireNamespace("BiocManager", quietly = TRUE)) {
-  install.packages("BiocManager")
-}
-if (! requireNamespace("Biobase", quietly = TRUE)) {
-  BiocManager::install("Biobase")
-}
-if (! requireNamespace("GEOquery", quietly = TRUE)) {
-  BiocManager::install("GEOquery")
-}
-if (! requireNamespace("edgeR", quietly = TRUE)) {
-  BiocManager::install("edgeR")
-}
-if (! requireNamespace("biomaRt", quietly = TRUE)) {
-  BiocManager::install("biomaRt")
-}
-if (! requireNamespace("ggplot2", quietly = TRUE)) {
-  BiocManager::install("ggplot2")
-}
-if (! requireNamespace("PoiClaClu", quietly = TRUE)) {
-  BiocManager::install("PoiClaClu")
+suppressWarnings({
+  if (! requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+  }
+  if (! requireNamespace("Biobase", quietly = TRUE)) {
+    BiocManager::install("Biobase")
+  }
+  if (! requireNamespace("GEOquery", quietly = TRUE)) {
+    BiocManager::install("GEOquery")
+  }
+  if (! requireNamespace("edgeR", quietly = TRUE)) {
+    BiocManager::install("edgeR")
+  }
+  if (! requireNamespace("biomaRt", quietly = TRUE)) {
+    BiocManager::install("biomaRt")
+  }
+  if (! requireNamespace("ggplot2", quietly = TRUE)) {
+    BiocManager::install("ggplot2")
+  }
+  if (! requireNamespace("PoiClaClu", quietly = TRUE)) {
+    BiocManager::install("PoiClaClu")
+  }
 })
 
 # load non-normalized counts
 dataset_name <- "GSE165708"
+GSE165708 <- GEOquery::getGEO(dataset_name, GSEMatrix = FALSE, getGPL= FALSE)
 if (!dir.exists(paste0("./", dataset_name))) {
-  GSE165708 <- GEOquery::getGEO(dataset_name, GSEMatrix = FALSE, getGPL= FALSE)
   supp_files <- GEOquery::getGEOcountsFiles(dataset_name)
   file_names <- rownames(supp_files) 
   counts <- read.delim(file_names[2], header = TRUE, check.names = FALSE)
@@ -56,8 +58,8 @@ if (!dir.exists(paste0("./", dataset_name))) {
 **Data information**
 
 ```{r}
-platform <- names(GPLList(GSE165708))[1]
-platform_metadata <- GEOquery::Meta(GEOquery::getGEO(current_gpl))
+platform <- names(GEOquery::GPLList(GSE165708))[1]
+platform_metadata <- GEOquery::Meta(GEOquery::getGEO(platform))
 ```
 
 **Platform:** `r platform_metadata$title`
@@ -115,6 +117,9 @@ rownames(cpms) <- counts$gene_id
 # n is set to 28, which is the size of the smallest group of replicates (PrEP)
 filtered <- counts[rowSums(cpms > 1) >= 28, ]
 counts_filtered <- table(filtered$gene_name)
+```
+
+```{r}
 knitr::kable(counts_filtered[which(counts_filtered > 1)], col.names = c("Gene", "Frequency"))
 ```
 
@@ -145,7 +150,7 @@ filtered <- merge(filtered, id_conv, by = "ensembl_id")
 knitr::kable(hgnc[which(hgnc > 1)], col.names = c("HGNC Symbol", "Frequency"))
 ```
 
-There were `r sum(id_conv$hgnc_symbol == "")` genes that could not be mapped to HGNC symbols, which is `r sum(id_conv$hgnc_symbol == "")/length(id_conv$hgnc_symbol) * 100`% of all genes. However, gene names were included in the original dataset that are mostly the same as the HGNC symbols I mapped, with `r sum(filtered2$gene_name != filtered2$hgnc_symbol) / nrow(filtered2) * 100` being different (mostly attributed to genes that could not be mapped to any HGNC symbol). I will merge these instead to deal with missing HGNC identifiers. We also see that mapping to HGNC symbols only leaves 4 duplicated genes.
+There were `r sum(id_conv$hgnc_symbol == "")` genes that could not be mapped to HGNC symbols, which is `r sum(id_conv$hgnc_symbol == "")/length(id_conv$hgnc_symbol) * 100`% of all genes. However, gene names were included in the original dataset that are mostly the same as the HGNC symbols I mapped, with `r sum(filtered$gene_name != filtered$hgnc_symbol) / nrow(filtered) * 100` being different (mostly attributed to genes that could not be mapped to any HGNC symbol). I will merge these instead to deal with missing HGNC identifiers. We also see that mapping to HGNC symbols only leaves 4 duplicated genes.
 
 The duplicated genes are: `r names(hgnc[which(hgnc > 1)])`, ignoring the first empty string which represents genes that could not be mapped to HGNC symbols. Since there are only 4 and each one is only duplicated once (8 genes in total), I will just remove all of them.
 
@@ -168,10 +173,10 @@ Removing duplicates leaves us with `r nrow(filtered)` genes.
 # code from lecture 4
 filtered_log_cpm <- log2(edgeR::cpm(filtered[,3:102]))
 par(mar = c(6, 4, 4, 4)) # increase bottom margin since x-labels are so long
-boxplot(filtered_log_cpm, xlab = "", 
+suppressWarnings(boxplot(filtered_log_cpm, xlab = "", 
         ylab = "log2(CPM) values", las = 2,
         cex = 0.5, cex.lab = 0.75, cex.axis = 0.5, 
-        main = "Log2 CPMs of HIV groups") 
+        main = "Log2 CPMs of HIV groups"))
 mtext("Conditions", side = 1, line = 4.7) # adds x-axis label
 ```
 
@@ -204,7 +209,7 @@ rownames(filtered_mat) <- filtered$ensembl_id
 dge <- edgeR::DGEList(counts = filtered_mat, 
                       group = groups$sample_group)
 dge <- edgeR::calcNormFactors(dge)
-normalized_counts <- edgeR::cpm(d)
+normalized_counts <- edgeR::cpm(dge)
 normed_log_counts <- log2(normalized_counts)
 ```
 
@@ -213,10 +218,10 @@ We now have a matrix object that has 100 columns representing the 100 samples, 1
 ```{r}
 # plot normalized counts
 par(mar = c(6, 4, 4, 4)) 
-boxplot(normed_log_counts, xlab = "", 
+suppressWarnings(boxplot(normed_log_counts, xlab = "", 
         ylab = "log2(CPM) values", las = 2,
         cex = 0.5, cex.lab = 0.75, cex.axis = 0.5, 
-        main = "Log2 CPMs of HIV groups after normalization") 
+        main = "Log2 CPMs of HIV groups after normalization"))
 mtext("Conditions", side = 1, line = 4.7) # adds x-axis label
 ```
 
@@ -244,8 +249,8 @@ We can also calculate a distance metric for each combination of samples to check
 pois_distances <- PoiClaClu::PoissonDistance(t(filtered_mat))
 pois_dist_mat <- as.matrix(pois_distances$dd)
 mds <- data.frame(cmdscale(pois_dist_mat))
-mds <- cbind(mds, samples)
-qplot(X1, X2, color = sample_group, data = mds, main = "MDS plot of Poisson Distances by sample group")
+mds <- cbind(mds, groups)
+ggplot2::qplot(X1, X2, color = sample_group, data = mds, main = "MDS plot of Poisson Distances by sample group")
 ```
 
 Based on the MDS plot, we do not really see clear clustering by sample group. There is a pattern that the Healthy Control (HC) group (in pink) tends to be on the left side, the Persons living with HIV (PLWH) group (in green) tending to be more on the right, and the pre-exposure prophylaxis (PrEP) group (in blue) towards the bottom middle. However, compared to other clearly-clustered examples, this is definitely a very obscure distinction between sample groups. I also tried plotting by the other conditions, by patient or by challenged status, but the clustering was even more obscure.
