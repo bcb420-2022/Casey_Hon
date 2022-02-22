@@ -199,6 +199,9 @@ pre code {
   if (! requireNamespace(&quot;ggplot2&quot;, quietly = TRUE)) {
     BiocManager::install(&quot;ggplot2&quot;)
   }
+  if (! requireNamespace(&quot;affy&quot;, quietly = TRUE)) {
+    BiocManager::install(&quot;affy&quot;)
+  }
   if (! requireNamespace(&quot;PoiClaClu&quot;, quietly = TRUE)) {
     BiocManager::install(&quot;PoiClaClu&quot;)
   }
@@ -218,7 +221,7 @@ if (!dir.exists(paste0(&quot;./&quot;, dataset_name))) {
 <pre class="r"><code>platform &lt;- names(GEOquery::GPLList(GSE165708))[1]
 platform_metadata &lt;- GEOquery::Meta(GEOquery::getGEO(platform))</code></pre>
 <pre><code>## File stored at:</code></pre>
-<pre><code>## /var/folders/nj/tvkkny3102s7c5cvjj926ncm0000gn/T//RtmpCGmviF/GPL20301.soft</code></pre>
+<pre><code>## /var/folders/nj/tvkkny3102s7c5cvjj926ncm0000gn/T//Rtmp47AY97/GPL20301.soft</code></pre>
 <p><strong>Platform:</strong> Illumina HiSeq 4000 (Homo sapiens)</p>
 <p><strong>Organisms:</strong> Homo sapiens (taxid: 9606)</p>
 </div>

@@ -38,6 +38,9 @@ suppressWarnings({
   if (! requireNamespace("ggplot2", quietly = TRUE)) {
     BiocManager::install("ggplot2")
   }
+  if (! requireNamespace("affy", quietly = TRUE)) {
+    BiocManager::install("affy")
+  }
   if (! requireNamespace("PoiClaClu", quietly = TRUE)) {
     BiocManager::install("PoiClaClu")
   }
