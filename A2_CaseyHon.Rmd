@@ -1,7 +1,7 @@
 ---
 title: "Assignment 2"
 author: "Casey Hon"
-date: "r Sys.Date()'
+date: "r Sys.Date()"
 output:
   html_document:
     df_print: paged
@@ -33,13 +33,12 @@ In Assignment #1, I analyzed RNA-seq data from the study *Alveolar macrophages f
 
 Some basic statistics:
 GEO ID: GSE165708
-```{r, child = c('a1_casey.Rmd')}
-knitr::kable(group_counts, caption = "Number of groups in each condition")
-```
+
 The original dataset had over 60,000 genes. After using edgeR filtering protocols, 13,780 genes were left. 8 genes were duplicates so those were removed. The data was then normalized using the Trimed Mean of M-values (TMM) method. After normalizing, a Multi-Dimensional Scaling (MDS) plot was used to visualize clustering, but no clear clustering by sample group was seen. 
 
-```{r, child = c('a1_casey.Rmd')}
+```{r, message = FALSE}
 library(ggplot2)
+mds <- readRDS("mds.rds")
 qplot(X1, X2, color = sample_group, data = mds, main = "MDS plot of Poisson Distances by sample group")
 ```
 
@@ -49,21 +48,18 @@ Thus, this notebook aims to take this normalized expression data and:
 - and highlight dominant themes in the top set of genes.
 
 ## Differential Gene Expression
-```{r, child = c('a1_casey.Rmd')}
-groups <- groups
-```
+From the first assignment, we know that the possible groups were sample group, patient, and whether or not the sample was challenged. Based on the MDS plot of the normalized data, it seems like there is a pattern that the Healthy Control (HC) group (in pink) tends to be on the left side, the Persons living with HIV (PLWH) group (in green) tending to be more on the right, and the pre-exposure prophylaxis (PrEP) group (in blue) towards the bottom middle. Although this wasn't a very clear distinction of clusters, but plotting by other conditions, by patient or by challenged status made the clustering  even more obscure. Thus, I'm choosing to design my model by sample group (HC, PLWH, and PrEP).
 
-From the first assignment, we know that the possible groups were `r colnames(groups)`. Based on the MDS plot of the normalized data, it seems like there is a pattern that the Healthy Control (HC) group (in pink) tends to be on the left side, the Persons living with HIV (PLWH) group (in green) tending to be more on the right, and the pre-exposure prophylaxis (PrEP) group (in blue) towards the bottom middle. Although this wasn't a very clear distinction of clusters, but plotting by other conditions, by patient or by challenged status made the clustering  even more obscure. Thus, I'm choosing to design my model by sample group (HC, PLWH, and PrEP).
-
-```{r, child = c('a1_casey.Rmd')}
-# code referred to: https://bioinformatics-core-shared-training.github.io/RNAseq-R/rna-seq-de.nb.html and lecture 6
-library(stats)
-library(SummarizedExperiment)
+```{r}
+library(Biobase)
 library(limma)
+library(knitr)
 # create design matrix
+groups <- readRDS("groups.rds")
 cond_mod <- model.matrix(~ groups$sample_group)
 
 # create data matrix
+normed_log_counts <- readRDS("normed_log_counts.rds")
 rownames(normed_log_counts) <- make.unique(rownames(normed_log_counts)) # TO-DO: why are there duplicated rownames...? how is that possible?
 es <- ExpressionSet(assayData = normed_log_counts)
 
@@ -77,7 +73,7 @@ fit_pvals <- data.frame(fit2$p.value)
 colnames(fit_pvals) <- c("pvalue", "sample_groupPLWH", "sample_groupPrEP")
 fit_pvals <- fit_pvals[order(fit_pvals$pvalue), ]
 fit_pvals$pvalue <- as.character(fit_pvals$pvalue)
-knitr::kable(fit_pvals[1:10, ], row.names = TRUE, format = "markdown",
+kable(fit_pvals[1:10, ], row.names = TRUE, format = "markdown",
               caption = "Table 1: Top 10 genes with lowest p-values")
 ```
 We can see from table 1 that just the top 10 genes with smallest p-values have nearly 0 as p-values, which means the null hypothesis is rejected (there is strong differential expression). 
@@ -120,7 +116,27 @@ volc <- ggplot(data = mhc, aes(x=logFC, y=-log10(P.Value),
   geom_vline(xintercept = c(-log_thres, log_thres), col = "red") 
 volc
 
+```
+
+Out of `r nrow(mhc)` genes total, `r length(mhc$gene_name[mhc$diffexpressed == "up"])` genes were up-regulated, and `r length(mhc$gene_name[mhc$diffexpressed == "down"])` genes were down-regulated.
+
+```{r}
+kable(mhc[mhc$diffexpressed == "up", c("logFC", "P.Value", "adj.P.Val")],
+      caption = "Up-regulated genes",
+      col.names = c("log fold change", "p-value", "adjusted p-value"))
+kable(mhc[mhc$diffexpressed == "down", c("logFC", "P.Value", "adj.P.Val")],
+      caption = "Down-regulated genes",
+      col.names = c("log fold change", "p-value", "adjusted p-value"))
+```
+
+```{r}
 # visualize top hits with heatmap
+library(pheatmap)
+
+hm_matrix <- normed_log_counts[which(mhc$diffexpressed == "up" | mhc$diffexpressed == "down"),]
+hm_matrix[which(!is.finite(hm_matrix))] <- 0 # remove infinite value
+hm_matrix <- t(scale(t(hm_matrix))) # scale to normalize
+pheatmap(hm_matrix, show_colnames = FALSE)
 
 ```
 
@@ -132,7 +148,7 @@ I used a 1.5 fold change threshold to determine whether genes were up or down re
 
 2. Multiple hypothesis testing - correct your p-values using a multiple hypothesis correction method. Which method did you use? And Why? How many genes passed correction?
 
-I chose to use the default (BH) method for correction as it is recommended as one of the most superior in terms of user-friendliness and documentation, and since it is the default in limma too so using this method could increase probability of potential comparison with other analyses (Korthauer et al., 2019; Ritchie et al., 2015). IHW was also ranked as a top method, but I chose against this since it demonstrated low False Discovery Rate (FDR) compared to other methods (Korthauer et al., 2019). However, IHW did have very similar patterns to BH in terms of FDR control, applicability, and usability (Korthauer et al., 2019). `r length(which(mhc$adj.P.Val < pval_thres))` genes passed correction.
+I chose to use the default Benjamini-Hochberg (BH) method for correction as it is recommended as one of the most superior in terms of user-friendliness and documentation, and since it is the default in limma too so using this method could increase probability of potential comparison with other analyses (Korthauer et al., 2019; Ritchie et al., 2015). IHW was also ranked as a top method, but I chose against this since it demonstrated low False Discovery Rate (FDR) compared to other methods (Korthauer et al., 2019). However, IHW did have very similar patterns to BH in terms of FDR control, applicability, and usability (Korthauer et al., 2019). `r length(which(mhc$adj.P.Val < pval_thres))` genes passed correction.
 
 3. Show the amount of differentially expressed genes using an MA Plot or a Volcano plot. Highlight genes of interest.
 
