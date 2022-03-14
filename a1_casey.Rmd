@@ -73,7 +73,8 @@ platform_metadata <- GEOquery::Meta(GEOquery::getGEO(platform))
 
 Unique gene count: `r length(unique(counts$gene_id))`
 
-```{r}
+```{r group_counts}
+## ---- groups_chunk
 # split ensembl ID and gene name, code referred to Lecture 4 slides
 gene_names <- data.frame(lapply(counts$gene_id, FUN = function(x){unlist(strsplit(x, split = "_"))}))
 counts$gene_name <- t(gene_names[2,])
@@ -85,6 +86,7 @@ colnames(groups) <- colnames(counts[2:101])
 rownames(groups) <- c("sample_group", "patient", "disease", "challenged") 
 # challenged = boolean value for whether or not the sample was challenged with M. tuberculosis, with 0 means non-challenged, 1 means challenged.
 groups <- as.data.frame(t(groups))
+saveRDS(groups, file = "groups.rds")
 group_counts <- data.frame(HC = length(which(groups$sample_group == "HC")), 
                             PrEP = length(which(groups$sample_group == "PrEP")), 
                             PLWH = length(which(groups$sample_group == "PLWH")))
@@ -205,15 +207,17 @@ Based on this density plot, we can see that most of the groups follow a very sim
 
 The Trimmed Mean of M-values (TMM) method of normalization will be used as it is a technique for RNA-seq data. \*\* TO-DO: elaborate \*\*
 
-```{r}
+```{r filt_chunk, cache.vars=filtered_mat}
 #code from lecture 4
 filtered_mat <- as.matrix(filtered[, 3:102])
+saveRDS(filtered_mat, file = "filtered_mat.rds")
 rownames(filtered_mat) <- filtered$ensembl_id
 dge <- edgeR::DGEList(counts = filtered_mat, 
                       group = groups$sample_group)
 dge <- edgeR::calcNormFactors(dge)
 normalized_counts <- edgeR::cpm(dge)
 normed_log_counts <- log2(normalized_counts)
+saveRDS(normed_log_counts, "normed_log_counts.rds")
 ```
 
 We now have a matrix object that has 100 columns representing the 100 samples, 13,757 rows representing the genes, and the Ensembl Gene IDs are the rownames. The values are the logged, normalized counts.
@@ -245,7 +249,8 @@ The density plot is very slightly changed after normalization, but still shows a
 
 We can also calculate a distance metric for each combination of samples to check for variation within the sample groups. I will perform Multi-Dimensional Scaling (MDS) to display distances in a 2D-plot. MDS uses Poisson Distance as it's distance metric. Since there are three sample groups, we should expect to see three separated clusters.
 
-```{r}
+```{r plot_chunk}
+## ---- plot_chunk
 # MDS plot to inspect sample separation
 # based on https://mkempenaar.github.io/gene_expression_analysis/ and https://www.bioconductor.org/help/course-materials/2014/SeattleOct2014/B02.1.1_RNASeqLab.html
 # PoissonDistance function takes original count matrix, un-normalized, with samples as rows
@@ -253,6 +258,7 @@ pois_distances <- PoiClaClu::PoissonDistance(t(filtered_mat))
 pois_dist_mat <- as.matrix(pois_distances$dd)
 mds <- data.frame(cmdscale(pois_dist_mat))
 mds <- cbind(mds, groups)
+saveRDS(mds, file = "mds.rds")
 ggplot2::qplot(X1, X2, color = sample_group, data = mds, main = "MDS plot of Poisson Distances by sample group")
 ```
 
