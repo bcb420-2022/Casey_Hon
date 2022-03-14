@@ -1,0 +1,125 @@
+---
+title: "Assignment 2"
+author: "Casey Hon"
+date: "13/03/2022"
+output:
+  html_document:
+    df_print: paged
+---
+```{r, message = FALSE}
+suppressWarnings({
+  if (! requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+  }
+  if (! requireNamespace("Biobase", quietly = TRUE)) {
+    BiocManager::install("Biobase")
+  }
+  if (! requireNamespace("limma", quietly = TRUE)) {
+    BiocManager::install("limma")
+  }
+  if (! requireNamespace("knitr", quietly = TRUE)) {
+    BiocManager::install("knitr")
+  }
+  if (! requireNamespace("DESeq2", quietly = TRUE)) {
+    BiocManager::install("DESeq2")
+  }
+})
+```
+
+## Introduction
+In Assignment #1, I analyzed RNA-seq data from the study *Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis* (Correa-Macedo et al., 2021). The data contained 16 control subjects who were HIV-free (HC), 20 persons living with HIV receiving ART (PLWH), and 14 subjects who received ART as preexposure prophylaxis (PrEP) to prevent HIV infection. Each sample was challenged with *M. tuberculosis* in vitro.
+
+Some basic statistics:
+GEO ID: GSE165708
+```{r, child = c('a1_casey.Rmd')}
+knitr::kable(group_counts, caption = "Number of groups in each condition")
+```
+The original dataset had over 60,000 genes. After using edgeR filtering protocols, 13,780 genes were left. 8 genes were duplicates so those were removed. The data was then normalized using the Trimed Mean of M-values (TMM) method. After normalizing, a Multi-Dimensional Scaling (MDS) plot was used to visualize clustering, but no clear clustering by sample group was seen. 
+
+```{r, child = c('a1_casey.Rmd')}
+ggplot2::qplot(X1, X2, color = sample_group, data = mds, main = "MDS plot of Poisson Distances by sample group")
+```
+
+Thus, this notebook aims to take this normalized expression data and:
+- rank genes according to differential expression;
+- perform thresholded over-representation analysis (ORA);
+- and highlight dominant themes in the top set of genes.
+
+## Differential Gene Expression
+```{r, child = c('a1_casey.Rmd')}
+groups <- groups
+```
+
+From the first assignment, we know that the possible groups were `r colnames(groups)`. Based on the MDS plot of the normalized data, it seems like there is a pattern that the Healthy Control (HC) group (in pink) tends to be on the left side, the Persons living with HIV (PLWH) group (in green) tending to be more on the right, and the pre-exposure prophylaxis (PrEP) group (in blue) towards the bottom middle. Although this wasn't a very clear distinction of clusters, but plotting by other conditions, by patient or by challenged status made the clustering  even more obscure. Thus, I'm choosing to design my model by sample group (HC, PLWH, and PrEP).
+
+```{r, child = c('a1_casey.Rmd')}
+# code referred to: https://bioinformatics-core-shared-training.github.io/RNAseq-R/rna-seq-de.nb.html, http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html, and lecture 6
+library(stats)
+library(SummarizedExperiment)
+library(limma)
+# create design matrix
+cond_mod <- model.matrix(~ groups$sample_group)
+
+# create data matrix
+rownames(normed_log_counts) <- make.unique(rownames(normed_log_counts)) # TO-DO: why are there duplicated rownames...? how is that possible?
+es <- ExpressionSet(assayData = normed_log_counts)
+
+# test for differential expression
+fit <- lmFit(es, design = cond_mod)
+fit2 <- eBayes(fit, trend = TRUE) # calculates p-values too
+
+# sort by p-value
+fit_pvals <- data.frame(fit2$p.value)
+colnames(fit_pvals) <- c("pvalue", "sample_groupPLWH", "sample_groupPrEP")
+fit_pvals <- fit_pvals[order(fit_pvals$pvalue), ]
+fit_pvals$`p-value` <- as.character(fit_pvals$pvalue)
+knitr::kable(fit_pvals[1:10,], format = "markdown", digits = 4, caption = "Table 1: Top 10 genes with smallest p-values")
+```
+We can see from table 1 that just the top 10 genes with smallest p-values have nearly 0 as p-values, which means the null hypothesis is rejected (there is strong differential expression). 
+
+There are exactly `r length(which(fit_pvals$pvalue < 0.05))` genes that have a p-value of less than 0.05, which is `r length(which(fit_pvals$pvalue < 0.05)) / nrow(fit_pvals) * 100`%. 
+
+However, it's important to note these statistics are before correcting p-values for multiple testing. We'll adjust for this using the Benjamini-Hochberg Procedure, which controls for the fact that some small p-values may occur by chance (Glen, n.d.).
+
+```{r}
+# correct p-values with mult hyp correction
+
+# MA plot or volcano plot, highlight genes of interest
+
+# visualize top hits with heatmap
+
+```
+
+
+1. Calculate p-values for each of the genes in your expression set. How many genes were significantly differentially expressed? What thresholds did you use and why?
+
+2. Multiple hypothesis testing - correct your p-values using a multiple hypothesis correction method. Which method did you use? And Why? How many genes passed correction?
+
+3. Show the amount of differentially expressed genes using an MA Plot or a Volcano plot. Highlight genes of interest.
+
+4. Visualize your top hits using a heatmap. Do you conditions cluster together? Explain why or why not.
+
+
+## Thresholded Over-Representation Analysis
+1. Which method did you choose and why?
+
+2. What annotation data did you use and why? What version of the annotation are you using?
+
+3. How many genesets were returned with what thresholds?
+
+4. Run the analysis using the up-regulated set of genes, and the down-regulated set of genes separately. How do these results compare to using the whole list (i.e all differentially expressed genes together vs. the up-regulated and down regulated differentially expressed genes separately)?
+
+
+## Interpretation
+1. Do the over-representation results support conclusions or mechanism discussed in the original paper?
+
+2. Can you find evidence, i.e. publications, to support some of the results that you see. How does this evidence support your results.
+
+
+## References
+
+Correa-Macedo, W., et al. "Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis." *The Journal of clinical investigation* vol. 131,22 (2021): e148013. <doi:10.1172/JCI148013>
+
+Glen, S. "Benjamini-Hochberg Procedure" From StatisticsHowTo.com: Elementary Statistics for the rest of us! https://www.statisticshowto.com/benjamini-hochberg-procedure/
+
+Love, M.I., Huber, W., Anders, S. (2014) Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. Genome Biology, 15:550. 10.1186/s13059-014-0550-8
