@@ -72,8 +72,9 @@ fit2 <- eBayes(fit, trend = TRUE) # calculates p-values too
 fit_pvals <- data.frame(fit2$p.value)
 colnames(fit_pvals) <- c("pvalue", "sample_groupPLWH", "sample_groupPrEP")
 fit_pvals <- fit_pvals[order(fit_pvals$pvalue), ]
-fit_pvals$`p-value` <- as.character(fit_pvals$pvalue)
-knitr::kable(fit_pvals[1:10,], format = "markdown", digits = 4, caption = "Table 1: Top 10 genes with smallest p-values")
+fit_pvals$pvalue <- as.character(fit_pvals$pvalue)
+knitr::kable(fit_pvals[1:10, ], row.names = TRUE, format = "markdown",
+              caption = "Table 1: Top 10 genes with lowest p-values")
 ```
 We can see from table 1 that just the top 10 genes with smallest p-values have nearly 0 as p-values, which means the null hypothesis is rejected (there is strong differential expression). 
 
@@ -82,18 +83,25 @@ There are exactly `r length(which(fit_pvals$pvalue < 0.05))` genes that have a p
 However, it's important to note these statistics are before correcting p-values for multiple testing. We'll adjust for this using the Benjamini-Hochberg Procedure, which controls for the fact that some small p-values may occur by chance (Glen, n.d.).
 
 ```{r}
-# correct p-values with mult hyp correction
+# correct p-values with mult hyp correction, sorted by adjusted p-value
+mhc <- topTable(fit2, coef = ncol(cond_mod), adjust.method = "BH", 
+                number = nrow(es), sort.by = "p")
+knitr::kable(mhc[1:10, c("P.Value", "adj.P.Val")], row.names = TRUE, format = "markdown", digits = 32, caption = "Table 2: Top 10 genes with lowest adjusted p-values")
+```
+Based on table 2, we see that the 10 genes with the lowest p-values are completely different. Now, there are `r length(which(mhc$adj.P.Val < 0.05))` genes that have a p-value of less than 0.05, which is `r length(which(mhc$adj.P.Val < 0.05)) / nrow(mhc) * 100`%. 
 
+```{r}
 # MA plot or volcano plot, highlight genes of interest
 
 # visualize top hits with heatmap
 
 ```
 
-
 1. Calculate p-values for each of the genes in your expression set. How many genes were significantly differentially expressed? What thresholds did you use and why?
 
 2. Multiple hypothesis testing - correct your p-values using a multiple hypothesis correction method. Which method did you use? And Why? How many genes passed correction?
+
+`r length(which(mhc$adj.P.Val < 0.05))` genes passed correction.
 
 3. Show the amount of differentially expressed genes using an MA Plot or a Volcano plot. Highlight genes of interest.
 
