@@ -141,7 +141,6 @@ kable(mhc[mhc$diffexpressed == "down", c("logFC", "P.Value", "adj.P.Val")],
 
 ```{r, message=FALSE, warning=FALSE}
 # visualize top hits with heatmap
-library(pheatmap)
 library(ComplexHeatmap)
 hm_matrix <- normed_log_counts[which(mhc$diffexpressed == "up" | mhc$diffexpressed == "down"),]
 hm_matrix[which(!is.finite(hm_matrix))] <- 0 # remove infinite value
