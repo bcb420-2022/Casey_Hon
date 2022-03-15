@@ -38,9 +38,10 @@ In Assignment #1, I analyzed RNA-seq data from the study *Alveolar macrophages f
 AMs were obtained from 16 control subjects who were HIV-free (HC), 20 persons living with HIV receiving ART (PLWH), and 14 subjects who received ART as preexposure prophylaxis (PrEP) to prevent HIV infection. Each sample was challenged with *M. tuberculosis* in vitro. 
 
 Some basic statistics:
+
 GEO ID: GSE165708
 
-The original dataset had over 60,000 genes. After using edgeR filtering protocols, 13,780 genes were left. 8 genes were duplicates so those were removed. The data was then normalized using the Trimed Mean of M-values (TMM) method. After normalizing, a Multi-Dimensional Scaling (MDS) plot was used to visualize clustering, but no clear clustering by sample group was seen. 
+The original dataset had over 60,000 genes. After using edgeR filtering protocols, 13,780 genes were left. 8 genes were duplicates so those were removed. The data was then normalized using the Trimed Mean of M-values (TMM) method. After normalizing, a Multi-Dimensional Scaling (MDS) plot was used to visualize clustering, but no clear clustering by sample group was seen. There is a pattern that the Healthy Control (HC) group (in pink) tends to be on the left side, the Persons living with HIV (PLWH) group (in green) tending to be more on the right, and the pre-exposure prophylaxis (PrEP) group (in blue) towards the bottom middle. However, compared to other clearly-clustered examples, this is definitely a very obscure distinction between sample groups. I also tried plotting by the other conditions, by patient or by challenged status, but the clustering was even more obscure.
 
 ```{r message=FALSE, warning=FALSE}
 library(ggplot2)
@@ -82,7 +83,7 @@ fit_pvals$pvalue <- as.character(fit_pvals$pvalue)
 kable(fit_pvals[1:10, ], row.names = TRUE, format = "markdown",
               caption = "Table 1: Top 10 genes with lowest p-values")
 ```
-We can see from table 1 that just the top 10 genes with smallest p-values have nearly 0 as p-values, which means the null hypothesis is rejected (there is strong differential expression). 
+We can see from table 1 that just the top 10 genes with smallest p-values have nearly 0 as p-values, which means that for these genes at least, the null hypothesis is rejected (there is strong differential expression). 
 
 There are exactly `r length(which(fit_pvals$pvalue < pval_thres))` genes that have a p-value of less than 0.05, which is `r length(which(fit_pvals$pvalue < pval_thres)) / nrow(fit_pvals) * 100`%. 
 
@@ -101,7 +102,7 @@ Based on table 2, we see that the 10 genes with the lowest p-values are complete
 # volcano plot, highlight genes of interest
 library(ggrepel)
 options(ggrepel.max.overlaps = Inf)
-log_thres <- 1.5 
+log_thres <- 1.5
 
 mhc$diffexpressed <- "none"
 mhc$diffexpressed[mhc$logFC > log_thres & mhc$P.Value < pval_thres] <- "up" # up-regulated
@@ -131,6 +132,8 @@ Out of `r nrow(mhc)` genes total, `r length(mhc$gene_name[mhc$diffexpressed == "
 kable(mhc[mhc$diffexpressed == "up", c("logFC", "P.Value", "adj.P.Val")],
       caption = "Table 3: Up-regulated genes",
       col.names = c("log fold change", "p-value", "adjusted p-value"))
+```
+```{r}
 kable(mhc[mhc$diffexpressed == "down", c("logFC", "P.Value", "adj.P.Val")],
       caption = "Table 4: Down-regulated genes",
       col.names = c("log fold change", "p-value", "adjusted p-value"))
@@ -143,20 +146,20 @@ library(ComplexHeatmap)
 hm_matrix <- normed_log_counts[which(mhc$diffexpressed == "up" | mhc$diffexpressed == "down"),]
 hm_matrix[which(!is.finite(hm_matrix))] <- 0 # remove infinite value
 hm_matrix <- t(scale(t(hm_matrix))) # scale to normalize
-annot <- data.frame()
+
 # referred to: https://jokergoo.github.io/ComplexHeatmap-reference/book/heatmap-annotations.html#block-annotation
-Heatmap(hm_matrix, column_order = order(sapply(strsplit(colnames(hm_matrix),"\\."), `[`, 1)),
-        name = "mat",
+Heatmap(hm_matrix, column_order = order(sapply(strsplit(colnames(hm_matrix),"\\."), `[`, 4)),
+        name = "normalized log counts",
         column_title = "Figure 3: Top Genes by Differential Expression",
         row_names_gp = gpar(fontsize = 6),
         column_names_gp = gpar(fontsize = 5),
         column_split = groups$sample_group,
-        top_annotation = HeatmapAnnotation(foo = anno_block(gp = gpar(fill = 0),
+        top_annotation = HeatmapAnnotation(sg = anno_block(gp = gpar(fill = 0),
           labels = c("HC", "PLWH", "PrEP"), 
           labels_gp = gpar(col = "black", fontsize = 8))))
 ```
 
-This heatmap is ordered column-wise by patient, with every two columns representing one patient (every other column is the challenged sample). We can see that there is very little clustering by patient. Each block represents one sample group (HC, PLWH, or PrEP). 
+This heatmap is ordered column-wise by patient, with every two columns representing one patient (every other column is the challenged sample). We can see that there is very little clustering by patient. Each block represents one sample group (HC, PLWH, or PrEP). The left half of each block are non-challenged samples (sample name ends in a 0), while the right half are challenged samples (sample name ends in a 1).
 
 **1. Calculate p-values for each of the genes in your expression set. How many genes were significantly differentially expressed? What thresholds did you use and why?**
 
@@ -197,23 +200,20 @@ all_genes <- mhc$gene_name[mhc$diffexpressed != "none"]
 write.table(all_genes, file = file.path("data", "all_genes.txt"))
 
 gprof <- gost(query = all_genes, organism = "hsapiens",
-                   domain_scope = "custom",
-                   custom_bg = rownames(mhc)) # use all genes from array as background
+              sources = c("GO:BP", "KEGG", "HPA", "HP", "REAC")) # use all genes from array as background
 gprof_plot <- gostplot(gprof, capped = FALSE, interactive = T)
 gprof_plot
 ```
 ```{r}
 gprof_up <- gost(query = upreg_genes, organism = "hsapiens",
-                   domain_scope = "custom",
-                   custom_bg = rownames(mhc)) 
+                 sources = c("GO:BP", "KEGG", "HPA", "HP", "REAC")) 
 gprof_up_plot <- gostplot(gprof_up, capped = FALSE, interactive = T)
 gprof_up_plot
 ```
 
 ```{r}
 gprof_down <- gost(query = downreg_genes, organism = "hsapiens",
-                   domain_scope = "custom",
-                   custom_bg = rownames(mhc)) 
+                   sources = c("GO:BP", "KEGG", "HPA", "HP", "REAC")) 
 gprof_down_plot <- gostplot(gprof_down, capped = FALSE, interactive = T)
 gprof_down_plot
 ```
@@ -223,20 +223,41 @@ I chose to use Over-Representation Analysis (ORA) as the gene set enrichment ana
 
 **2. What annotation data did you use and why? What version of the annotation are you using?**
 
-I used most data sources available for the homo sapiens organism since the data is from human cells. I excluded TRANSFAC as the data is not related to transcription factors, **TO-DO**
+I used most data sources available for the homo sapiens organism since the data is from human cells. The authors used GO-term enrichment analysis too, so including GO would help me compare my results with theirs. I excluded the datasets that were not relevant to the study, such as GO:MF (molecular function), GO:CC (cellular component), etc. I also included the KEGG and REAC databases since the original study also performed gene ontology enrichment analysis with that. The version of data is the most updated based on g:Profiler, with the gprofiler2 package version being 0.2.1.
 
 **3. How many genesets were returned with what thresholds?**
 
-12 genesets were returned with the default threshold 0.05, which is the same p-value significance threshold I used throughout this notebook.
+`r length(gprof[["result"]][["term_name"]])` genesets were returned with the default threshold 0.05, which is the same p-value significance threshold I used throughout this notebook.
 
 **4. Run the analysis using the up-regulated set of genes, and the down-regulated set of genes separately. How do these results compare to using the whole list (i.e all differentially expressed genes together vs. the up-regulated and down regulated differentially expressed genes separately)?**
 
-In the analysis of just the up-regulated set of genes, only 3 genesets were returned. All of these genesets were from the Human Phenotype Ontology (HP) datasource. For the down-regulated set, there were also only 3 genesets returned. One geneset was from the biological process source (GO:BP) and two were from the Kyoto Encyclopedia of Genes and Genomes (KEGG).
+In the analysis of just the up-regulated set of genes, `r length(gprof_up[["result"]][["term_name"]])` genesets were returned. All of these genesets were from the Human Phenotype Ontology (HP) datasource. 
+For the down-regulated set, there were `r length(gprof_down[["result"]][["term_name"]])` genesets returned. One geneset was from the biological process source (GO:BP) and two were from the Kyoto Encyclopedia of Genes and Genomes (KEGG).
 
 ## Interpretation
 **1. Do the over-representation results support conclusions or mechanism discussed in the original paper?**
 
+In the original paper, they noted 40 genes that were differentially expressed at FDR less than or equal to 5% in response to M. tuberculosis (TB) in the PLWH and PrEP groups (Correa-Macedo et al., 2021). They may have more differentially-expressed genes by using different logFC threshold or methods of normalization. Interestingly, they used the same FDR method (Benjamini-Hochberg), but they applied it to raw P values while I applied it to the values from the fitted model which could have made a difference. 
 
+Following in vitro challenge with TB, AMs from each group displayed overlapping but distinct profiles of significantly up- and downregulated genes in response to TB. They reported that AMs from the PLWH and PrEP subjects had substantially weaker transcriptional response. We can see similar results from the heatmap that genes are generally more downregulated/have weaker transcriptional response in both the PLWH and PrEP groups, while being more upregulated in the healthy controls. 
+
+They also saw that the magnitude of AM transcriptional response to TB differed across the 3 sample groups, with the smallest mean absolute log fold change in response to MTB among PrEP subjects, and the strongest transcriptional response in HCs. We do not see this difference very clearly, as based on the heatmap the challenged samples in the PrEP group do not seem to have any major difference in log fold change.
+
+PLWH had stronger transcriptional response than PrEP subjects. They also saw that logFC values were consistently higher for corresponding genes from HC subjects, suggesting a transcriptional impairment in PLWH and PrEP subjects. We do see this result in our heat map as the HC group visually looks more upregulated than the other groups, meaning they had higher logFC values.
+
+They also reported number of significant GO terms/pathways to be substantially lower for PLWH and PrEP groups. Upon further analysis, it would be interesting to compare the pathway results across sample groups instead of just up- and downregulated genes.
+
+The top term returned from GO:BP is "response to cytokine", from KEGG it's "Viral protein interaction with cytokine and cytokine receptor", and from HP it's "Y-linked inheritance".
+
+For up-regulated genes, the top term is from HP: "Y-linked inheritance".
+
+For down-regulated genes, the top term is from GO:BP: "response to cytokine".
+
+The original paper did do a cytokine analysis and found that AMs from the PLWH and PrEP groups had reduced cytokine secretions levels compared to the HC groups. This suggests there is a differential role of cytokines in HIV and PrEP. 
 
 **2. Can you find evidence, i.e. publications, to support some of the results that you see. How does this evidence support your results.**
+HIV infection targets the immune system, leading to immunodeficiency (Le Saout, Lane, & Catalfamo, 2012). Since the top terms from two of the datasets were related to cytokines, this points to an importance of cytokines with HIV or TB infection. Cytokines have an important role in the immune system, and HIV infection actually leads to dysregulation of cytokine profile (Kedzierska & Crowe, 2001). During the course of HIV-1 infection, secretion of certain T-helper type 1 cytokines like is decreased while T-helper type 2 cytokines is increased (Kedzierska & Crowe, 2001). In fact, one of the T-helper type 1 cytokines is antiviral interferon gamma, which is one of our top hits from GO:BP. 
 
+Most of the other top hits are also just related to immune response or cytokine production regulation, which follows from how infection occurs.
+
+The topic of the top term from HP, "Y-linked inheritance", like sex-links or sex chromosomes, was interestingly not really talked about in the original paper. However, the Y chromosome is said to have a prominent role in determining outcomes of HIV infection (Maan et al., 2017).

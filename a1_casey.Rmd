@@ -86,7 +86,7 @@ colnames(groups) <- colnames(counts[2:101])
 rownames(groups) <- c("sample_group", "patient", "disease", "challenged") 
 # challenged = boolean value for whether or not the sample was challenged with M. tuberculosis, with 0 means non-challenged, 1 means challenged.
 groups <- as.data.frame(t(groups))
-saveRDS(groups, file = "groups.rds")
+saveRDS(groups, file = "./data/groups.rds")
 group_counts <- data.frame(HC = length(which(groups$sample_group == "HC")), 
                             PrEP = length(which(groups$sample_group == "PrEP")), 
                             PLWH = length(which(groups$sample_group == "PLWH")))
@@ -147,7 +147,7 @@ if (file.exists(converted)) { # check if file already exists before converting a
                                       filters = c("ensembl_gene_id"),
                                       values = filtered$ensembl_id,
                                       mart = ensembl)
-  saveRDS(id_conv, converted)
+  saveRDS(id_conv, paste0("./data/", converted))
 }
 hgnc <- table(id_conv$hgnc_symbol)
 colnames(id_conv) <- c("ensembl_id", "hgnc_symbol")
@@ -210,14 +210,13 @@ The Trimmed Mean of M-values (TMM) method of normalization will be used as it is
 ```{r filt_chunk, cache.vars=filtered_mat}
 #code from lecture 4
 filtered_mat <- as.matrix(filtered[, 3:102])
-saveRDS(filtered_mat, file = "filtered_mat.rds")
 rownames(filtered_mat) <- filtered$ensembl_id
 dge <- edgeR::DGEList(counts = filtered_mat, 
                       group = groups$sample_group)
 dge <- edgeR::calcNormFactors(dge)
 normalized_counts <- edgeR::cpm(dge)
 normed_log_counts <- log2(normalized_counts)
-saveRDS(normed_log_counts, "normed_log_counts.rds")
+saveRDS(normed_log_counts, "./data/normed_log_counts.rds")
 ```
 
 We now have a matrix object that has 100 columns representing the 100 samples, 13,757 rows representing the genes, and the Ensembl Gene IDs are the rownames. The values are the logged, normalized counts.
@@ -258,7 +257,7 @@ pois_distances <- PoiClaClu::PoissonDistance(t(filtered_mat))
 pois_dist_mat <- as.matrix(pois_distances$dd)
 mds <- data.frame(cmdscale(pois_dist_mat))
 mds <- cbind(mds, groups)
-saveRDS(mds, file = "mds.rds")
+saveRDS(mds, file = "./data/mds.rds")
 ggplot2::qplot(X1, X2, color = sample_group, data = mds, main = "MDS plot of Poisson Distances by sample group")
 ```
 
