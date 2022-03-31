@@ -1,0 +1,106 @@
+---
+title: "Assignment 3"
+author: "Casey Hon"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_depth: 2
+bibliography: a3_caseyhon.bib
+---
+```{r, message = FALSE}
+suppressWarnings({
+  if (! requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+  }
+  if (! requireNamespace("Biobase", quietly = TRUE)) {
+    BiocManager::install("Biobase")
+  }
+  if (! requireNamespace("fgsea", quietly = TRUE)) {
+    BiocManager::install("fgsea")
+  }
+  if (! requireNamespace("RCurl", quietly = TRUE)) {
+    BiocManager::install("RCurl")
+  }
+  if (! requireNamespace("ggrepel", quietly = TRUE)) {
+    BiocManager::install("ggrepel")
+  }
+  
+})
+```
+## Introduction
+In Assignment #1, I analyzed RNA-seq data from the study *Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis* (Correa-Macedo et al., 2021). Individuals with HIV are at higher risk to have tuberculosis (TB), and this is often due to infection with *Mycobacterium tuberculosis* (*M. tuberculosis*) that rapidly progresses to disease (Correa-Macedo et al., 2021). Alveolar macrophages (AMs) are the first cells in the immune system that interact with *M. tuberculosis*, however their interaction with HIV and antiretroviral therapy (ART) is still unknown (Correa-Macedo et al., 2021). Thus, this study aimed to investigate the transcriptomic and epigenetic response of AMs to *M. tuberculosis* and how HIV and ART play a part in these mechanisms.
+
+AMs were obtained from 16 control subjects who were HIV-free (HC), 20 persons living with HIV receiving ART (PLWH), and 14 subjects who received ART as preexposure prophylaxis (PrEP) to prevent HIV infection. Each sample was challenged with *M. tuberculosis* in vitro. 
+
+Some basic statistics:
+
+GEO ID: GSE165708
+
+The original dataset had over 60,000 genes. After using edgeR filtering protocols, 13,780 genes were left. 8 genes were duplicates so those were removed. The data was then normalized using the Trimed Mean of M-values (TMM) method. After normalizing, a Multi-Dimensional Scaling (MDS) plot was used to visualize clustering, but no clear clustering by sample group was seen. There is a pattern that the Healthy Control (HC) group (in pink) tends to be on the left side, the Persons living with HIV (PLWH) group (in green) tending to be more on the right, and the pre-exposure prophylaxis (PrEP) group (in blue) towards the bottom middle. However, compared to other clearly-clustered examples, this is definitely a very obscure distinction between sample groups. I also tried plotting by the other conditions, by patient or by challenged status, but the clustering was even more obscure.
+
+In Assignment #2, I used the normalized expression data and ranked genes according to differential expression, performed thresholded over-representation analysis (ORA), and highlighted dominant themes in the top set of genes. I found that genes are generally more downregulated/have weaker transcriptional response in both the PLWH and PrEP groups, while being more upregulated in the healthy controls. The HC group visually looked more upregulated than the other groups. Through ORA, the top terms were related to cytokine response or Y-linked inheritance, which is expected as we are looking at HIV data that is a sex-related disease and involves infection.
+
+Now that we have the set of genes ranked according to differential expression, this notebook aims to:
+- conduct non-thresholded gene set enrichment analysis;
+- visualize the GSEA results in Cytoscape
+
+## Non-thresholded gene set enrichment analysis
+```{r, warning=FALSE}
+library(fgsea)
+library(RCurl)
+
+# code from Enrichment Map Protocol (Isserlin 2020)
+gmt_url = "http://download.baderlab.org/EM_Genesets/March_01_2021/Human/symbol/"
+filenames = getURL(gmt_url)
+tc = textConnection(filenames)
+contents = readLines(tc)
+close(tc)
+rx = gregexpr("(?<=<a href=\")(.*.GOBP_AllPathways_no_GO_iea.*.)(.gmt)(?=\">)",
+              contents,
+              perl = TRUE)
+gmt_file = unlist(regmatches(contents, rx))
+dest_gmt_file <- file.path("/Users/honcasey8/Casey_Hon", gmt_file)
+download.file(paste(gmt_url, gmt_file, sep = ""), destfile = dest_gmt_file)
+
+run_gsea <- TRUE
+java_version = "11"
+gsea_jar <- "/Users/honcasey8/Downloads/GSEA_4.2.3/gsea-cli.sh"
+working_dir <- "/Users/honcasey8/Casey_Hon/A3_files"
+rnk_file <- "ranked_genes.rnk"
+analysis_name <- "A3_HIV_Analysis"
+
+
+if(run_gsea && java_version == "11"){
+  command <- paste("", gsea_jar,  "GSEAPreRanked -gmx", dest_gmt_file, "-rnk",
+                   file.path(working_dir,rnk_file), 
+                   "-collapse false -nperm 1000 -scoring_scheme weighted -rpt_label ", 
+                   analysis_name,
+                   "  -plot_top_x 20 -rnd_seed 12345  -set_max 200 -set_min 15 -zip_report false -out",
+                   working_dir, " > gsea_output.txt",
+                   sep=" ")
+  system(command)
+} else if (run_gsea) {
+    command <- paste("java  -Xmx1G -cp", gsea_jar,  "xtools.gsea.GseaPreranked -gmx",
+                     dest_gmt_file, "-rnk" ,file.path(working_dir,rnk_file), 
+                     "-collapse false -nperm 1000 -permute gene_set -scoring_scheme weighted -rpt_label ",
+                     analysis_name,
+                     "  -num 100 -plot_top_x 20 -rnd_seed 12345  -set_max 200 -set_min 15 -zip_report false -out" ,
+                     working_dir, "-gui false > gsea_output.txt",
+                     sep=" ")
+  system(command)
+}
+
+```
+
+
+## Result visualization in Cytoscape
+
+
+
+
+
+
+
+
