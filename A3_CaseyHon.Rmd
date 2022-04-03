@@ -26,8 +26,13 @@ suppressWarnings({
   if (! requireNamespace("ggrepel", quietly = TRUE)) {
     BiocManager::install("ggrepel")
   }
+  if (! requireNamespace("knitr", quietly = TRUE)) {
+    BiocManager::install("knitr")
+  }
   
 })
+
+library(knitr)
 ```
 ## Introduction
 In Assignment #1, I analyzed RNA-seq data from the study *Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis* (Correa-Macedo et al., 2021). Individuals with HIV are at higher risk to have tuberculosis (TB), and this is often due to infection with *Mycobacterium tuberculosis* (*M. tuberculosis*) that rapidly progresses to disease (Correa-Macedo et al., 2021). Alveolar macrophages (AMs) are the first cells in the immune system that interact with *M. tuberculosis*, however their interaction with HIV and antiretroviral therapy (ART) is still unknown (Correa-Macedo et al., 2021). Thus, this study aimed to investigate the transcriptomic and epigenetic response of AMs to *M. tuberculosis* and how HIV and ART play a part in these mechanisms.
@@ -47,7 +52,7 @@ Now that we have the set of genes ranked according to differential expression, t
 - visualize the GSEA results in Cytoscape
 
 ## Non-thresholded gene set enrichment analysis
-```{r, warning=FALSE}
+```{r, warning=FALSE, message=FALSE}
 library(fgsea)
 library(RCurl)
 
@@ -71,7 +76,6 @@ working_dir <- "/Users/honcasey8/Casey_Hon/A3_files"
 rnk_file <- "ranked_genes.rnk"
 analysis_name <- "A3_HIV_Analysis"
 
-
 if(run_gsea && java_version == "11"){
   command <- paste("", gsea_jar,  "GSEAPreRanked -gmx", dest_gmt_file, "-rnk",
                    file.path(working_dir,rnk_file), 
@@ -94,13 +98,53 @@ if(run_gsea && java_version == "11"){
 
 ```
 
+#1. What method did you use? What genesets did you use? Make sure to specify versions and cite your methods.#
+I used Gene Set Enrichment Analysis through the GSEA Java software (Mootha et al., 2003; Subramananian et al., 2005). I used the Human genesets from the Bader Lab's March 2021 collection as found here: http://download.baderlab.org/EM_Genesets/March_01_2021/Human/ (Merico et al., 2010).
+
+
+#2. Summarize your enrichment results.#
+The positively ranked genes were the upregulated genes while the negative ones were the downregulated genes. Thus, I looked at the resulting gsea report for positive and negative to view the enrichment results.
+```{r, warning=FALSE, message=FALSE}
+library(readr)
+
+gsea_file <- list.files(path = working_dir, pattern = "\\.GseaPreranked")
+pos_results <- list.files(path = paste0(working_dir, "/", gsea_file), pattern = "gsea_report_for_na_pos.*.tsv")
+neg_results <- list.files(path = paste0(working_dir, "/", gsea_file), pattern = "gsea_report_for_na_neg.*.tsv")
+
+pos_results <- read_tsv(file = paste0(working_dir, "/", gsea_file, "/", pos_results),  col_names = TRUE)
+neg_results <- read_tsv(file = paste0(working_dir, "/", gsea_file, "/", neg_results),  col_names = TRUE)
+
+columns_to_show <- c("NAME", "SIZE", "ES", "NES", "FDR q-val", "LEADING EDGE")
+kable(head(pos_results[, columns_to_show]), caption = "Table 1: Top GSEA results for upregulated genes")
+```
+```{r}
+kable(head(neg_results[, columns_to_show]), caption = "Table 2: Top GSEA results for downregulated genes")
+```
+
+
+#3. How do these results compare to the results from the thresholded analysis in Assignment #2. Compare qualitatively. Is this a straight forward comparison? Why or why not?#
+
+
 
 ## Result visualization in Cytoscape
+#1. Create an enrichment map - how many nodes and how many edges in the resulting map? What thresholds were used to create this map? Make sure to record all thresholds. Include a screenshot of your network prior to manual layout.#
+
+
+#2. Annotate your network - what parameters did you use to annotate the network. If you are using the default parameters make sure to list them as well.#
+
+
+#3. Make a publication ready figure - include this figure with proper legends in your notebook.#
+
+
+#4. Collapse your network to a theme network. What are the major themes present in this analysis? Do they fit with the model? Are there any novel pathways or themes?#
 
 
 
 
+## Interpretation
+#1. Do the enrichment results support conclusions or mechanism discussed in the original paper? How do these results differ from the results you got from Assignment #2 thresholded methods#
 
 
+#2.Can you find evidence, i.e. publications, to support some of the results that you see. How does this evidence support your result?#
 
 
