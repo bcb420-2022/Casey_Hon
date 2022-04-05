@@ -121,9 +121,8 @@ kable(head(pos_results[, columns_to_show]), caption = "Table 1: Top GSEA results
 kable(head(neg_results[, columns_to_show]), caption = "Table 2: Top GSEA results for downregulated genes")
 ```
 
-
 #3. How do these results compare to the results from the thresholded analysis in Assignment #2. Compare qualitatively. Is this a straight forward comparison? Why or why not?#
-
+In the thresholded ORA in Assignment #2, we only looked at significant genes based on the given thresholds. Now in Assignment #3, we are looking at the entire set of genes. Thus, we cannot really compare the two results side by side. By glancing over the terms returned in the ORA versus those from GSEA, there aren't any common terms found. For example, I expected to see "Cytokine" or "sperm" since these were popular terms in ORA enrichment results, but in the GSEA results these are not seen. This makes sense though since we are looking at a larger set of genes in GSEA since we are not limited by any threshold, thus giving us a more wide range of terminology. For ORA, we were looking at the thresholded, significant subset of genes and so we would expect more specific, focused terminology.
 
 
 ## Result visualization in Cytoscape
