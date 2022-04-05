@@ -29,7 +29,9 @@ suppressWarnings({
   if (! requireNamespace("knitr", quietly = TRUE)) {
     BiocManager::install("knitr")
   }
-  
+  if (! requireNamespace("GSA", quietly = TRUE)) {
+    BiocManager::install("GSA")
+  }
 })
 
 library(knitr)
@@ -49,7 +51,8 @@ In Assignment #2, I used the normalized expression data and ranked genes accordi
 
 Now that we have the set of genes ranked according to differential expression, this notebook aims to:
 - conduct non-thresholded gene set enrichment analysis;
-- visualize the GSEA results in Cytoscape
+- visualize the GSEA results in Cytoscape;
+- visualize a specific pathway/theme of interest.
 
 ## Non-thresholded gene set enrichment analysis
 ```{r, warning=FALSE, message=FALSE}
@@ -107,7 +110,7 @@ The positively ranked genes were the upregulated genes while the negative ones w
 ```{r, warning=FALSE, message=FALSE}
 library(readr)
 
-gsea_file <- list.files(path = working_dir, pattern = "\\.GseaPreranked")
+gsea_file <- list.files(path = file.path(working_dir, "A3_files"), pattern = "\\.GseaPreranked")
 pos_results <- list.files(path = paste0(working_dir, "/", gsea_file), pattern = "gsea_report_for_na_pos.*.tsv")
 neg_results <- list.files(path = paste0(working_dir, "/", gsea_file), pattern = "gsea_report_for_na_neg.*.tsv")
 
@@ -119,6 +122,7 @@ kable(head(pos_results[, columns_to_show]), caption = "Table 1: Top GSEA results
 ```
 ```{r}
 kable(head(neg_results[, columns_to_show]), caption = "Table 2: Top GSEA results for downregulated genes")
+# try to use plotGseaTable here
 ```
 
 #3. How do these results compare to the results from the thresholded analysis in Assignment #2. Compare qualitatively. Is this a straight forward comparison? Why or why not?#
@@ -127,23 +131,33 @@ In the thresholded ORA in Assignment #2, we only looked at significant genes bas
 
 ## Result visualization in Cytoscape
 #1. Create an enrichment map - how many nodes and how many edges in the resulting map? What thresholds were used to create this map? Make sure to record all thresholds. Include a screenshot of your network prior to manual layout.#
+![Figure 1: Enrichment Map pre-annotation](~/Casey_Hon/A3_files/A3_HIV_Analysis-FirstNetwork.png)
+There are 56 nodes which correspond to the 56 gene sets, and 285 edges. The node cutoff was P-value of 0.05, edge cutoff at 0.375. Interestingly, all of the nodes were blue, which represents downregulated genes. Perhaps the up-regulated genes did not pass the thresholds when mapping.
 
-
-#2. Annotate your network - what parameters did you use to annotate the network. If you are using the default parameters make sure to list them as well.#
-
-
-#3. Make a publication ready figure - include this figure with proper legends in your notebook.#
+#2. Annotate your network - what parameters did you use to annotate the network. If you are using the default parameters make sure to list them as well. #
+#3. Make a publication ready figure - include this figure with proper legends in your notebook.# 
+![Figure 2: Annotated EnrichmentMap](~/Casey_Hon/A3_files/A3_HIV_Analysis-Annotated.png)
+![Legend](~/Casey_Hon/A3_files/Legend.png)
+My annotated and publication-ready network is above. First I used the EnrichmentMap node cutoff of P-value of 0.05 and edge cutoff of 0.375. The node colouring is based on FDR with darker pink meaning higher FDR. The overlap of edges is defined by the colour of the edges, as defined by the legend. The geneset overlaps ranged from 25 to 164 edges in common. I manually annotated the nodes that had dark blue edges, which means they had nearly 160 edges overlapping.
 
 
 #4. Collapse your network to a theme network. What are the major themes present in this analysis? Do they fit with the model? Are there any novel pathways or themes?#
-
-
-
+![Figure 4: Theme Network](~/Casey_Hon/A3_files/A3_HIV_Analysis-Theme.png)
+I used the AutoAnnotate Cytoscape App to annotate my network which uses the clusterMaker app (Kucera et al., 2016). I used the MCL Cluster as the cluster algorithm and the similarity coefficient as the edge weight column. I also allowed for singleton clusters to be able to identify which genesets were not linked to others. I then organized the clusters by CoSE Layout. This allowed me to visualize the most common themes, which are clearly "antiviral transport virus" and "mitotic spindle formation". The nodes are also coloured by p-value, with a darker pink denoting a higher p-value.
 
 ## Interpretation
 #1. Do the enrichment results support conclusions or mechanism discussed in the original paper? How do these results differ from the results you got from Assignment #2 thresholded methods#
-
+In Assignment #2, I found that the top terms were related to cytokines and sex chromosomes (such as "Y-linked inheritance"). In the enrichment results here, the most visible terms are related to mitosis and RNA. The results seem different from the thresholded methods, but by looking at the pathways more in detail they still relate back to chromosomes and cytokines. This aligns with the conclusions in the original paper, as they mention that Alveolar Macrophages from healthy control subjects who were challenged with M. tuberculosis showed chromatin accessibility changes, which was not seen in the PLWH and PrEP subjects. 
 
 #2.Can you find evidence, i.e. publications, to support some of the results that you see. How does this evidence support your result?#
+The link between our HIV data and mitosis is shown as HIV-1 infectivity of cells seems to be enhanced during mitosis (Gibbons, Lee, & McKnight, 2019). An earlier paper showed how HIV-1 viron-associated protein (Vpr) induces defects in mitosis, cytokinesis, nuclear structure, and centrosomes, which can be seen in our themes network with several significant terms linked to mitosis and its functional structures (Belzile et al., 2007; Chang et al., 2004; Kurapati et al., 2015; Payne et al., 2018).
+
+## Theme
+# 2. Choose a specific pathway or theme to investigate in more detail. Why did you choose this pathway or theme? Show the pathway or theme as a gene network or as a pathway diagram. Annotate the network or pathway with your original log fold expression values and p-values to show how it is effected in your model. (Hint: if the theme or pathway is not from database that has detailed mechanistic information like Reactome you can use apps like GeneMANIA or String to build the the interaction network.)
+I used String to build an interaction network for the first pathway in the "antiviral transport virus" cluster, which was "multi-organism localization". I referred back to the logFC and p-values from Assignment #2 for each gene and manually annotated them. Based on the description of each gene, they are mostly involved in centrosome or centriole function, as well as completion of cytokinesis which ties back to the findings from Assignment #2. 
+
+![Figure 5: Mitotic Prophase Pathway in Homo sapiens](~/Casey_Hon/A3_files/STRING network - localization.png)
+
+
 
 
