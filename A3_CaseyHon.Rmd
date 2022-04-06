@@ -33,8 +33,6 @@ suppressWarnings({
     BiocManager::install("GSA")
   }
 })
-
-library(knitr)
 ```
 ## Introduction
 In Assignment #1, I analyzed RNA-seq data from the study *Alveolar macrophages from persons living with HIV show impaired epigenetic response to Mycobacterium tuberculosis* (Correa-Macedo et al., 2021). Individuals with HIV are at higher risk to have tuberculosis (TB), and this is often due to infection with *Mycobacterium tuberculosis* (*M. tuberculosis*) that rapidly progresses to disease (Correa-Macedo et al., 2021). Alveolar macrophages (AMs) are the first cells in the immune system that interact with *M. tuberculosis*, however their interaction with HIV and antiretroviral therapy (ART) is still unknown (Correa-Macedo et al., 2021). Thus, this study aimed to investigate the transcriptomic and epigenetic response of AMs to *M. tuberculosis* and how HIV and ART play a part in these mechanisms.
@@ -69,95 +67,108 @@ rx = gregexpr("(?<=<a href=\")(.*.GOBP_AllPathways_no_GO_iea.*.)(.gmt)(?=\">)",
               contents,
               perl = TRUE)
 gmt_file = unlist(regmatches(contents, rx))
-dest_gmt_file <- file.path("/Users/honcasey8/Casey_Hon", gmt_file)
+dest_gmt_file <- paste0("./", gmt_file)
 download.file(paste(gmt_url, gmt_file, sep = ""), destfile = dest_gmt_file)
 
-run_gsea <- TRUE
-java_version = "11"
-gsea_jar <- "/Users/honcasey8/Downloads/GSEA_4.2.3/gsea-cli.sh"
-working_dir <- "/Users/honcasey8/Casey_Hon/A3_files"
-rnk_file <- "ranked_genes.rnk"
-analysis_name <- "A3_HIV_Analysis"
-
-if(run_gsea && java_version == "11"){
-  command <- paste("", gsea_jar,  "GSEAPreRanked -gmx", dest_gmt_file, "-rnk",
-                   file.path(working_dir,rnk_file), 
-                   "-collapse false -nperm 1000 -scoring_scheme weighted -rpt_label ", 
-                   analysis_name,
-                   "  -plot_top_x 20 -rnd_seed 12345  -set_max 200 -set_min 15 -zip_report false -out",
-                   working_dir, " > gsea_output.txt",
-                   sep=" ")
-  system(command)
-} else if (run_gsea) {
-    command <- paste("java  -Xmx1G -cp", gsea_jar,  "xtools.gsea.GseaPreranked -gmx",
-                     dest_gmt_file, "-rnk" ,file.path(working_dir,rnk_file), 
-                     "-collapse false -nperm 1000 -permute gene_set -scoring_scheme weighted -rpt_label ",
-                     analysis_name,
-                     "  -num 100 -plot_top_x 20 -rnd_seed 12345  -set_max 200 -set_min 15 -zip_report false -out" ,
-                     working_dir, "-gui false > gsea_output.txt",
-                     sep=" ")
-  system(command)
-}
+# ran GSEA on local
+# run_gsea <- TRUE
+# java_version = "11"
+# gsea_jar <- "./GSEA_4.2.3/gsea-cli.sh"
+# working_dir <- "./Casey_Hon/A3_files"
+# rnk_file <- "ranked_genes.rnk"
+# analysis_name <- "A3_HIV_Analysis"
+# 
+# if(run_gsea && java_version == "11"){
+#   command <- paste("", gsea_jar,  "GSEAPreRanked -gmx", dest_gmt_file, "-rnk",
+#                    file.path(working_dir,rnk_file), 
+#                    "-collapse false -nperm 1000 -scoring_scheme weighted -rpt_label ", 
+#                    analysis_name,
+#                    "  -plot_top_x 20 -rnd_seed 12345  -set_max 200 -set_min 15 -zip_report false -out",
+#                    working_dir, " > gsea_output.txt",
+#                    sep=" ")
+#   system(command)
+# } else if (run_gsea) {
+#     command <- paste("java  -Xmx1G -cp", gsea_jar,  "xtools.gsea.GseaPreranked -gmx",
+#                      dest_gmt_file, "-rnk" ,file.path(working_dir,rnk_file), 
+#                      "-collapse false -nperm 1000 -permute gene_set -scoring_scheme weighted -rpt_label ",
+#                      analysis_name,
+#                      "  -num 100 -plot_top_x 20 -rnd_seed 12345  -set_max 200 -set_min 15 -zip_report false -out" ,
+#                      working_dir, "-gui false > gsea_output.txt",
+#                      sep=" ")
+#   system(command)
+# }
 
 ```
 
-#1. What method did you use? What genesets did you use? Make sure to specify versions and cite your methods.#
+**1. What method did you use? What genesets did you use? Make sure to specify versions and cite your methods.**
 I used Gene Set Enrichment Analysis through the GSEA Java software (Mootha et al., 2003; Subramananian et al., 2005). I used the Human genesets from the Bader Lab's March 2021 collection as found here: http://download.baderlab.org/EM_Genesets/March_01_2021/Human/ (Merico et al., 2010).
 
 
-#2. Summarize your enrichment results.#
+**2. Summarize your enrichment results.**
 The positively ranked genes were the upregulated genes while the negative ones were the downregulated genes. Thus, I looked at the resulting gsea report for positive and negative to view the enrichment results.
 ```{r, warning=FALSE, message=FALSE}
 library(readr)
+library(knitr)
 
-gsea_file <- list.files(path = file.path(working_dir, "A3_files"), pattern = "\\.GseaPreranked")
-pos_results <- list.files(path = paste0(working_dir, "/", gsea_file), pattern = "gsea_report_for_na_pos.*.tsv")
-neg_results <- list.files(path = paste0(working_dir, "/", gsea_file), pattern = "gsea_report_for_na_neg.*.tsv")
+# working_dir <- "~/Casey_Hon/A3_files/"
 
-pos_results <- read_tsv(file = paste0(working_dir, "/", gsea_file, "/", pos_results),  col_names = TRUE)
-neg_results <- read_tsv(file = paste0(working_dir, "/", gsea_file, "/", neg_results),  col_names = TRUE)
+gsea_file <- list.files(path = getwd(), pattern = "\\.GseaPreranked")
+pos_results <- list.files(path = file.path(getwd(), gsea_file[1]), pattern = "gsea_report_for_na_pos.*.tsv")
+neg_results <- list.files(path = file.path(getwd(), gsea_file[1]), pattern = "gsea_report_for_na_neg.*.tsv")
 
-columns_to_show <- c("NAME", "SIZE", "ES", "NES", "FDR q-val", "LEADING EDGE")
+pos_results <- read.table(file = file.path(getwd(), gsea_file[1], pos_results), header = TRUE, sep = "\t", fill = TRUE, stringsAsFactors = FALSE)
+
+neg_results <- read.table(file = file.path(getwd(), gsea_file[1], neg_results), header = TRUE, sep = "\t", fill = TRUE, stringsAsFactors = FALSE)
+
+columns_to_show <- c("NAME", "SIZE", "ES", "NES", "FDR.q.val", "LEADING.EDGE")
 kable(head(pos_results[, columns_to_show]), caption = "Table 1: Top GSEA results for upregulated genes")
 ```
+
 ```{r}
 kable(head(neg_results[, columns_to_show]), caption = "Table 2: Top GSEA results for downregulated genes")
 # try to use plotGseaTable here
 ```
 
-#3. How do these results compare to the results from the thresholded analysis in Assignment #2. Compare qualitatively. Is this a straight forward comparison? Why or why not?#
+**3. How do these results compare to the results from the thresholded analysis in Assignment #2. Compare qualitatively. Is this a straight forward comparison? Why or why not?**
 In the thresholded ORA in Assignment #2, we only looked at significant genes based on the given thresholds. Now in Assignment #3, we are looking at the entire set of genes. Thus, we cannot really compare the two results side by side. By glancing over the terms returned in the ORA versus those from GSEA, there aren't any common terms found. For example, I expected to see "Cytokine" or "sperm" since these were popular terms in ORA enrichment results, but in the GSEA results these are not seen. This makes sense though since we are looking at a larger set of genes in GSEA since we are not limited by any threshold, thus giving us a more wide range of terminology. For ORA, we were looking at the thresholded, significant subset of genes and so we would expect more specific, focused terminology.
 
 
 ## Result visualization in Cytoscape
-#1. Create an enrichment map - how many nodes and how many edges in the resulting map? What thresholds were used to create this map? Make sure to record all thresholds. Include a screenshot of your network prior to manual layout.#
-![Figure 1: Enrichment Map pre-annotation](~/Casey_Hon/A3_files/A3_HIV_Analysis-FirstNetwork.png)
+
+**1. Create an enrichment map - how many nodes and how many edges in the resulting map? What thresholds were used to create this map? Make sure to record all thresholds. Include a screenshot of your network prior to manual layout.**
+![Figure 1: Enrichment Map pre-annotation](./A3_files/A3_HIV_Analysis-FirstNetwork.png)
+Figure 1: Enrichment Map pre-annotation
+
 There are 56 nodes which correspond to the 56 gene sets, and 285 edges. The node cutoff was P-value of 0.05, edge cutoff at 0.375. Interestingly, all of the nodes were blue, which represents downregulated genes. Perhaps the up-regulated genes did not pass the thresholds when mapping.
 
-#2. Annotate your network - what parameters did you use to annotate the network. If you are using the default parameters make sure to list them as well. #
-#3. Make a publication ready figure - include this figure with proper legends in your notebook.# 
-![Figure 2: Annotated EnrichmentMap](~/Casey_Hon/A3_files/A3_HIV_Analysis-Annotated.png)
-![Legend](~/Casey_Hon/A3_files/Legend.png)
+**2. Annotate your network - what parameters did you use to annotate the network. If you are using the default parameters make sure to list them as well.**
+**3. Make a publication ready figure - include this figure with proper legends in your notebook.**
+
+![Figure 2: Annotated EnrichmentMap](./A3_files/A3_HIV_Analysis-Annotated.png)
+![Legend](./A3_files/Legend.png)
+Figure 2: Annotated EnrichmentMap
+
 My annotated and publication-ready network is above. First I used the EnrichmentMap node cutoff of P-value of 0.05 and edge cutoff of 0.375. The node colouring is based on FDR with darker pink meaning higher FDR. The overlap of edges is defined by the colour of the edges, as defined by the legend. The geneset overlaps ranged from 25 to 164 edges in common. I manually annotated the nodes that had dark blue edges, which means they had nearly 160 edges overlapping.
 
 
-#4. Collapse your network to a theme network. What are the major themes present in this analysis? Do they fit with the model? Are there any novel pathways or themes?#
-![Figure 4: Theme Network](~/Casey_Hon/A3_files/A3_HIV_Analysis-Theme.png)
+**4. Collapse your network to a theme network. What are the major themes present in this analysis? Do they fit with the model? Are there any novel pathways or themes?**
+
+![Figure 4: Theme Network](./A3_files/A3_HIV_Analysis-Theme.png)
+Figure 4: Theme Network
+
 I used the AutoAnnotate Cytoscape App to annotate my network which uses the clusterMaker app (Kucera et al., 2016). I used the MCL Cluster as the cluster algorithm and the similarity coefficient as the edge weight column. I also allowed for singleton clusters to be able to identify which genesets were not linked to others. I then organized the clusters by CoSE Layout. This allowed me to visualize the most common themes, which are clearly "antiviral transport virus" and "mitotic spindle formation". The nodes are also coloured by p-value, with a darker pink denoting a higher p-value.
 
 ## Interpretation
-#1. Do the enrichment results support conclusions or mechanism discussed in the original paper? How do these results differ from the results you got from Assignment #2 thresholded methods#
+**1. Do the enrichment results support conclusions or mechanism discussed in the original paper? How do these results differ from the results you got from Assignment #2 thresholded methods**
 In Assignment #2, I found that the top terms were related to cytokines and sex chromosomes (such as "Y-linked inheritance"). In the enrichment results here, the most visible terms are related to mitosis and RNA. The results seem different from the thresholded methods, but by looking at the pathways more in detail they still relate back to chromosomes and cytokines. This aligns with the conclusions in the original paper, as they mention that Alveolar Macrophages from healthy control subjects who were challenged with M. tuberculosis showed chromatin accessibility changes, which was not seen in the PLWH and PrEP subjects. 
 
-#2.Can you find evidence, i.e. publications, to support some of the results that you see. How does this evidence support your result?#
+**2.Can you find evidence, i.e. publications, to support some of the results that you see. How does this evidence support your result?**
 The link between our HIV data and mitosis is shown as HIV-1 infectivity of cells seems to be enhanced during mitosis (Gibbons, Lee, & McKnight, 2019). An earlier paper showed how HIV-1 viron-associated protein (Vpr) induces defects in mitosis, cytokinesis, nuclear structure, and centrosomes, which can be seen in our themes network with several significant terms linked to mitosis and its functional structures (Belzile et al., 2007; Chang et al., 2004; Kurapati et al., 2015; Payne et al., 2018).
 
 ## Theme
-# 2. Choose a specific pathway or theme to investigate in more detail. Why did you choose this pathway or theme? Show the pathway or theme as a gene network or as a pathway diagram. Annotate the network or pathway with your original log fold expression values and p-values to show how it is effected in your model. (Hint: if the theme or pathway is not from database that has detailed mechanistic information like Reactome you can use apps like GeneMANIA or String to build the the interaction network.)
+**2.Choose a specific pathway or theme to investigate in more detail. Why did you choose this pathway or theme? Show the pathway or theme as a gene network or as a pathway diagram. Annotate the network or pathway with your original log fold expression values and p-values to show how it is effected in your model.**
+
 I used String to build an interaction network for the first pathway in the "antiviral transport virus" cluster, which was "multi-organism localization". I referred back to the logFC and p-values from Assignment #2 for each gene and manually annotated them. Based on the description of each gene, they are mostly involved in centrosome or centriole function, as well as completion of cytokinesis which ties back to the findings from Assignment #2. 
 
-![Figure 5: Mitotic Prophase Pathway in Homo sapiens](~/Casey_Hon/A3_files/STRING network - localization.png)
-
-
-
-
+![Figure 5: Mitotic Prophase Pathway in Homo sapiens](./A3_files/STRING network - localization.png)
+Figure 5: Mitotic Prophase Pathway in Homo sapiens
